@@ -1,17 +1,9 @@
-import os, glob, subprocess, sys
-# Auto-create database on Streamlit Cloud if missing
-if not glob.glob("*.db") and not glob.glob("*.sqlite*") and not glob.glob("**/*.db", recursive=True):
-    try:
-        subprocess.run([sys.executable, "seed.py"], check=False)
-    except Exception as e:
-        print(f"Seed failed: {e}")
 """Streamlit interface for the student and librarian library-agent views."""
 from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-````
 from library_agent import db
 from library_agent.chatbot import LibraryChatbot
 from library_agent.config import DB_PATH, FORECAST_HORIZON_WEEKS
