@@ -170,3 +170,106 @@ def evaluate_forecast(books, loans, as_of, origins: int = 6, horizon: int = 4) -
             flat = np.concatenate(errs)
             result[level][name] = {"mae": float(flat.mean()), "wape": float(flat.sum() / totals[level])}
     return result
+
+
+# ---------------------------------------------------------------- chatbot
+# Two sets of sentences the chatbot was NOT trained on. The DEV set was used while
+# improving the training data. The TEST set was only looked at once, at the end,
+# so its score is an honest estimate. Format: (sentence, correct intent).
+CHATBOT_DEV = [
+    ("do you have Deep Learning in stock", "availability"), ("is Atomic Habits on the shelf", "availability"),
+    ("any copies of Sapiens left", "availability"), ("can i take out The Hobbit today", "availability"),
+    ("which books must i return before friday", "due_soon"), ("what loans expire soon", "due_soon"),
+    ("show what is due in the coming days", "due_soon"), ("anything due next week", "due_soon"),
+    ("list late books", "overdue"), ("who has not returned their books", "overdue"),
+    ("show books past their due dates", "overdue"), ("do i have late books", "overdue"),
+    ("what should i borrow next", "recommendations"), ("give me some book ideas", "recommendations"),
+    ("recommend something based on what i read", "recommendations"), ("suggest a few titles for me", "recommendations"),
+    ("find me something on data structures", "search"), ("books about leadership", "search"),
+    ("i want to learn about soil", "search"), ("show books on constitutional law", "search"),
+    ("what has chinua achebe written", "author_search"), ("books by orwell", "author_search"),
+    ("show me titles by adichie that are available", "author_search"),
+    ("which genres will be busy next month", "forecast"), ("predict exam period borrowing", "forecast"),
+    ("what books will we run out of", "forecast"), ("which titles need extra copies", "forecast"),
+    ("what is the fine for a late book", "policy"), ("how many days can i keep a book", "policy"),
+    ("can i borrow more than five books", "policy"), ("do i get warnings before a due date", "policy"),
+    ("what have i borrowed so far", "my_loans"), ("show my fines", "my_loans"),
+    ("how many books am i holding", "my_loans"), ("what do i currently owe", "my_loans"),
+    ("please extend my loan on this book", "renew"), ("renew sapiens for me", "renew"),
+    ("i need another two weeks with it", "renew"), ("can you renew my book", "renew"),
+    ("what is like atomic habits", "similar"), ("books similar to deep work", "similar"),
+    ("find me more like this", "similar"),
+    ("good evening", "smalltalk"), ("thanks a lot", "smalltalk"), ("see you", "smalltalk"),
+    ("what can i ask", "help"), ("how do i use you", "help"), ("can you help me", "help"),
+    ("what is the best football team", "unknown"), ("tell me about your day", "unknown"),
+    ("how tall is mount kenya", "unknown"), ("calculate 15 percent of 200", "unknown"),
+]
+
+CHATBOT_TEST = [
+    ("is Clean Code available?", "availability"), ("do you have 'Cosmos' right now", "availability"),
+    ("are there copies of Grit?", "availability"), ("can i borrow The Alchemist", "availability"),
+    ("is the book 'Mindset' in stock", "availability"),
+    ("what do i have to return this week", "due_soon"), ("which loans fall due soon", "due_soon"),
+    ("show me due dates for next week", "due_soon"), ("books i should bring back in the coming days", "due_soon"),
+    ("are any of my books overdue", "overdue"), ("show late returns", "overdue"),
+    ("which loans are overdue", "overdue"), ("list the overdue books please", "overdue"),
+    ("who is late with books", "overdue"),
+    ("recommend me something to read", "recommendations"), ("what book should i read after this", "recommendations"),
+    ("give me book suggestions", "recommendations"), ("show recommendations for me", "recommendations"),
+    ("i need a new book to read, any ideas", "recommendations"),
+    ("find books about machine learning", "search"), ("do you have books on economics", "search"),
+    ("i am looking for biology textbooks", "search"), ("books about the history of kenya", "search"),
+    ("search for algorithms", "search"), ("anything about python programming", "search"),
+    ("show me books by ngugi", "author_search"), ("what does adichie have in the library", "author_search"),
+    ("which books by orwell can i borrow", "author_search"),
+    ("forecast demand for next month", "forecast"), ("which books need more copies", "forecast"),
+    ("predict borrowing by genre", "forecast"), ("what will be popular during exams", "forecast"),
+    ("how long is the loan period", "policy"), ("what is the fine for being late", "policy"),
+    ("how many books can i borrow", "policy"), ("can i renew a loan", "policy"),
+    ("will i get reminders before the due date", "policy"), ("how much do i pay for overdue books", "policy"),
+    ("show my current loans", "my_loans"), ("how much do i owe", "my_loans"),
+    ("which books do i have out", "my_loans"),
+    ("how many books have i borrowed right now", "my_loans"),
+    ("renew my loan", "renew"), ("extend this book", "renew"), ("renew 'Clean Code'", "renew"),
+    ("i would like to extend my loan", "renew"), ("please renew it", "renew"),
+    ("books like Sapiens", "similar"), ("what else is similar to this book", "similar"),
+    ("find similar books", "similar"), ("recommend books similar to Grit", "similar"),
+    ("hey hi", "smalltalk"), ("thanks very much", "smalltalk"), ("bye for now", "smalltalk"),
+    ("good day", "smalltalk"),
+    ("what are your features", "help"), ("help me please", "help"), ("how can you assist me", "help"),
+    ("what is the temperature in nairobi", "unknown"), ("who is the president of france", "unknown"),
+    ("translate hello into french", "unknown"), ("recommend a good restaurant", "unknown"),
+]
+
+
+def evaluate_chatbot(chatbot, dataset=None) -> dict:
+    """Intent accuracy on sentences the chatbot never trained on.
+
+    strict accuracy    : right intent AND confident enough to answer (what a user experiences)
+    accuracy if sure   : right intent among the answers it was confident about
+    answered           : share of sentences it was confident enough to answer
+    """
+    from .config import CHATBOT_MIN_CONFIDENCE
+    dataset = CHATBOT_TEST if dataset is None else dataset
+    correct = answered = answered_correct = 0
+    wrong = []
+    per_intent = {}
+    for sentence, expected in dataset:
+        intent, confidence = chatbot.classify(sentence)
+        sure = confidence >= CHATBOT_MIN_CONFIDENCE
+        ok = sure and intent == expected
+        correct += ok
+        answered += sure
+        answered_correct += sure and intent == expected
+        stats = per_intent.setdefault(expected, [0, 0])
+        stats[0] += ok
+        stats[1] += 1
+        if not ok:
+            wrong.append((sentence, expected, intent, round(confidence, 2)))
+    n = len(dataset)
+    return {
+        "sentences": n, "strict_accuracy": correct / n,
+        "accuracy_if_sure": answered_correct / answered if answered else 0.0,
+        "answered": answered / n, "wrong": wrong,
+        "per_intent": {k: v[0] / v[1] for k, v in per_intent.items()},
+    }
