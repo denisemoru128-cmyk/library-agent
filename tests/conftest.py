@@ -42,3 +42,9 @@ def fresh_conn(db_path, tmp_path):
 @pytest.fixture(scope="session")
 def books(conn):
     return db.books_df(conn)
+
+@pytest.fixture(scope="session")
+def forecaster(conn):
+    """One trained demand forecaster shared by every test that needs it (training takes a few seconds)."""
+    from library_agent.forecast import DemandForecaster
+    return DemandForecaster(db.books_df(conn), db.loans_df(conn), AS_OF)

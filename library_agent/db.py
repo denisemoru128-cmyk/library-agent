@@ -343,3 +343,29 @@ def notifications_df(conn, student_id: int | None = None, limit: int = 200) -> p
         conn,
         params=(student_id, student_id, limit),
     )
+
+
+# ------------------------------------------------------------- the agent's diary
+def log_action(conn, run_on: date, action: str, detail: str) -> bool:
+    """Record something the agent did. Returns True if it was NEW; an identical
+    entry for the same day is skipped, so running the agent twice does not
+    fill the log with duplicates. (The caller commits.)"""
+    exists = conn.execute(
+        "SELECT 1 FROM agent_log WHERE run_on = ? AND action = ? AND detail = ?",
+        (run_on.isoformat(), action, detail),
+    ).fetchone()
+    if exists:
+        return False
+    conn.execute(
+        "INSERT INTO agent_log (run_on, action, detail) VALUES (?, ?, ?)",
+        (run_on.isoformat(), action, detail),
+    )
+    return True
+
+
+def agent_log_df(conn, limit: int = 500) -> pd.DataFrame:
+    return pd.read_sql_query(
+        "SELECT log_id, run_on, action, detail FROM agent_log ORDER BY log_id DESC LIMIT ?",
+        conn,
+        params=(limit,),
+    )

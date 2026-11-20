@@ -20,6 +20,7 @@ MAX_ACTIVE_LOANS = 5         # books one student may hold at once
 MAX_RENEWALS = 1             # renewals allowed per loan
 FINE_PER_DAY = 20            # KES per overdue day, per book
 REMINDER_DAYS_BEFORE_DUE = 2 # send a "due soon" reminder this many days before
+ESCALATION_DAYS = 14         # overdue longer than this -> final notice + librarian follow-up
 
 # ------------------------------------------------------- academic calendar
 # The university year is modelled as repeating blocks: a 15-week term (the last
