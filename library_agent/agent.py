@@ -142,12 +142,14 @@ class LibraryAgent:
         return report
 
     # ---------------------------------------------------------------- driver
+    def preview(self, plan: Plan) -> CycleReport:
+        """What the agent WOULD do for this plan. Changes nothing (a dry run)."""
+        return CycleReport(on=plan.on, executed=False, lines=self._describe(plan))
+
     def run_cycle(self, on: date | None = None, dry_run: bool = False) -> CycleReport:
         """One full perceive -> reason -> act pass. ``dry_run`` stops before acting."""
         plan = self.decide(self.perceive(on))
-        if dry_run:
-            return CycleReport(on=plan.on, executed=False, lines=self._describe(plan))
-        return self.act(plan)
+        return self.preview(plan) if dry_run else self.act(plan)
 
     # --------------------------------------------------------------- helpers
     @staticmethod

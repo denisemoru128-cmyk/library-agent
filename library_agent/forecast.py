@@ -162,20 +162,32 @@ class DemandForecaster:
             else:
                 target_week = last_week + pd.Timedelta(weeks=offset)
 
+            # Books are independent within one week, so predict them all in ONE model call
+            # (400 single-row calls took 2.5 s; 4 batch calls are instant). The weeks themselves
+            # must stay in order: each week's prediction becomes the next week's "last week".
+            rows, histories, windows = [], [], []
             for row in self.books.itertuples(index=False):
-                book_id = int(row.book_id)
-                known = series_by_book.get(book_id, np.zeros(0))
+                known = series_by_book.get(int(row.book_id), np.zeros(0))
                 if len(known) < LAG_WEEKS:
                     values = np.pad(known, (max(0, LAG_WEEKS - len(known)), 0))[-LAG_WEEKS:]
                 else:
                     values = known[-LAG_WEEKS:].copy()
+                rows.append(row)
+                histories.append(known)
+                windows.append(values)
 
-                if self._model is None:
-                    prediction = float(values.mean())
-                else:
-                    features = self._features(book_id, row.genre, values, target_week)
-                    prediction = float(self._model.predict(self._vectorizer.transform([features]))[0])
-                prediction = round(max(prediction, 0.0), 3)
+            if self._model is None:
+                predicted = [float(values.mean()) for values in windows]
+            else:
+                features = [
+                    self._features(int(row.book_id), row.genre, values, target_week)
+                    for row, values in zip(rows, windows)
+                ]
+                predicted = self._model.predict(self._vectorizer.transform(features))
+
+            for row, known, prediction in zip(rows, histories, predicted):
+                book_id = int(row.book_id)
+                prediction = round(max(float(prediction), 0.0), 3)
                 weekly_predictions.append({
                     "week_start": target_week.date(),
                     "book_id": book_id,
