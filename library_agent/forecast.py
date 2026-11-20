@@ -1,4 +1,16 @@
-"""Weekly borrowing-demand forecasts using a pooled random-forest regressor."""
+"""Weekly borrowing-demand forecasts using a pooled random-forest regressor,
+plus acquisition advice ("how many copies will we need?") built on the forecast.
+
+The forecast itself (class DemandForecaster.forecast) predicts loans per week
+for every book from its own recent history, the academic calendar (exam weeks,
+breaks) and its genre. ``book_demand`` turns those predictions into a decision:
+
+    one copy can serve about  (days in the horizon / average loan length)  loans.
+    We aim to keep copies at most 70% busy so students rarely have to wait.
+    copies needed = forecast loans / (loans one copy can serve x 0.7)
+    if copies needed > copies owned  ->  advise buying the difference.
+"""
+import math
 from datetime import date, timedelta
 
 import numpy as np
@@ -11,6 +23,24 @@ from .config import FORECAST_HORIZON_WEEKS, RANDOM_SEED
 
 LAG_WEEKS = 8
 MAX_HORIZON_WEEKS = 52
+TARGET_UTILISATION = 0.7   # keep copies at most ~70% busy so students rarely wait
+RECENT_WEEKS = 8           # window used to report "recent loans" next to the forecast
+
+
+def copies_needed(forecast_loans: float, loans_per_copy: float) -> int:
+    """Copies required to serve the forecast demand at the target utilisation (at least 1)."""
+    return max(1, math.ceil(forecast_loans / (loans_per_copy * TARGET_UTILISATION)))
+
+
+def advice_for(copies: int, needed: int, demand_per_copy: float, loans_per_copy: float) -> str:
+    """Turn the numbers into a plain-language recommendation for the librarian."""
+    gap = needed - copies
+    if gap >= 1:
+        return f"Buy {gap} more cop{'y' if gap == 1 else 'ies'}"
+    # exactly enough copies, but they would be kept more than half busy: worth watching
+    if gap == 0 and demand_per_copy >= loans_per_copy * 0.5:
+        return "Watch"
+    return "OK"
 
 
 class DemandForecaster:
@@ -21,6 +51,11 @@ class DemandForecaster:
         self.as_of = pd.Timestamp(as_of).normalize()
         self._book_by_id = self.books.set_index("book_id")
         self._weekly = self._weekly_counts(loans)
+        returned = loans.dropna(subset=["returned_on"])
+        self.average_loan_days = (
+            float((returned["returned_on"] - returned["borrowed_on"]).dt.days.mean())
+            if len(returned) else 14.0
+        )
         self._vectorizer = DictVectorizer()
         self._model = None
         self._fit()
@@ -160,3 +195,45 @@ class DemandForecaster:
         else:
             result = result.sort_values(["week_start", "book_id"])
         return result.reset_index(drop=True)
+
+    # ------------------------------------------------------------ acquisition advice
+    def book_demand(self, horizon_weeks: int = FORECAST_HORIZON_WEEKS,
+                    availability: pd.DataFrame | None = None) -> pd.DataFrame:
+        """One row per book: recent loans, forecast loans, copies needed and advice.
+
+        Sorted so the books under the most pressure (forecast loans per copy) come first.
+        """
+        predicted = (
+            self.forecast(by="book", horizon_weeks=horizon_weeks)
+            .groupby("book_id")["predicted_loans"].sum()
+        )
+        recent = self._weekly.iloc[:, -RECENT_WEEKS:].sum(axis=1) if self._weekly.shape[1] else pd.Series(dtype=float)
+
+        df = self.books[["book_id", "title", "author", "genre", "copies"]].copy()
+        df["recent_loans"] = df["book_id"].map(recent).fillna(0).astype(int)
+        df["forecast_loans"] = df["book_id"].map(predicted).fillna(0.0).round(1)
+
+        loans_per_copy = max(horizon_weeks * 7 / max(self.average_loan_days, 1.0), 1.0)
+        df["copies_needed"] = [copies_needed(f, loans_per_copy) for f in df["forecast_loans"]]
+        df["demand_per_copy"] = (df["forecast_loans"] / df["copies"].clip(lower=1)).round(2)
+        df["advice"] = [
+            advice_for(c, n, d, loans_per_copy)
+            for c, n, d in zip(df["copies"], df["copies_needed"], df["demand_per_copy"])
+        ]
+        if availability is not None:
+            df = df.merge(availability[["book_id", "available"]], on="book_id", how="left")
+        return df.sort_values(["demand_per_copy", "forecast_loans"], ascending=False).reset_index(drop=True)
+
+    def high_demand_books(self, top_n: int = 10, horizon_weeks: int = FORECAST_HORIZON_WEEKS,
+                          availability: pd.DataFrame | None = None) -> pd.DataFrame:
+        """The librarian's 'what is under pressure' list."""
+        return self.book_demand(horizon_weeks, availability).head(top_n)
+
+    def total_series(self, horizon_weeks: int = FORECAST_HORIZON_WEEKS) -> pd.DataFrame:
+        """Weekly total loans: history ('actual') followed by the forecast, for a chart."""
+        history = self._weekly.sum(axis=0)
+        actual = pd.DataFrame({"week_start": history.index.date, "loans": history.to_numpy(), "kind": "actual"})
+        future = self.forecast(by="genre", horizon_weeks=horizon_weeks).groupby("week_start", as_index=False)[
+            "predicted_loans"].sum()
+        future = future.rename(columns={"predicted_loans": "loans"}).assign(kind="forecast")
+        return pd.concat([actual, future], ignore_index=True)

@@ -9,6 +9,7 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 
+from .forecast import DemandForecaster
 from .recommender import METHODS, Recommender
 from .search import BookSearch
 
@@ -114,3 +115,58 @@ def evaluate_recommender(books, students, loans, as_of, test_days: int = 60, k: 
         "methods": {m: {"hit_rate": s["hits"] / n_students, "recall": s["recall"] / n_students}
                     for m, s in scores.items()},
     }
+
+def evaluate_forecast(books, loans, as_of, origins: int = 6, horizon: int = 4) -> dict:
+    """Backtest the demand forecaster: pretend it is some weeks ago, forecast, compare with reality.
+
+    ``origins`` different past Mondays are tried. For each one the forecaster only
+    sees loans before that Monday and predicts the next ``horizon`` weeks.
+      genre level: error per genre per week
+      book level:  error per book on its total over the horizon (much noisier)
+    Baselines need no AI: "4-week average" repeats the average of the previous 4
+    weeks; "last 4 weeks repeated" assumes the next 4 weeks equal the last 4.
+    WAPE = total absolute error / total real loans (lower is better).
+    """
+    as_of = pd.Timestamp(as_of).normalize()
+    this_monday = as_of - pd.Timedelta(days=as_of.weekday())
+    genres = sorted(books["genre"].unique())
+    book_ids = books["book_id"].tolist()
+
+    tagged = loans[["book_id", "borrowed_on"]].merge(books[["book_id", "genre"]], on="book_id")
+    tagged["week"] = tagged["borrowed_on"].dt.to_period("W-SUN").dt.start_time
+    by_genre = tagged.groupby(["week", "genre"]).size().unstack(fill_value=0).reindex(columns=genres, fill_value=0)
+    by_book = tagged.groupby(["week", "book_id"]).size().unstack(fill_value=0).reindex(columns=book_ids, fill_value=0)
+
+    errors = {"genre": {"model": [], "4-week average": []}, "book": {"model": [], "last 4 weeks repeated": []}}
+    totals = {"genre": 0.0, "book": 0.0}
+    for k in range(origins):
+        origin = this_monday - pd.Timedelta(weeks=horizon + k)
+        future = [origin + pd.Timedelta(weeks=i) for i in range(horizon)]
+        past = [origin - pd.Timedelta(weeks=i) for i in range(1, 5)]
+        forecaster = DemandForecaster(books, loans[loans["borrowed_on"] < origin], origin)
+
+        g_pred = forecaster.forecast(by="genre", horizon_weeks=horizon)
+        g_pred["week_start"] = pd.to_datetime(g_pred["week_start"])
+        g_pred = (g_pred.pivot(index="week_start", columns="genre", values="predicted_loans")
+                  .reindex(index=future, columns=genres, fill_value=0.0).to_numpy())
+        g_actual = by_genre.reindex(future, fill_value=0).to_numpy(dtype=float)
+        g_base = np.tile(by_genre.reindex(past, fill_value=0).mean().to_numpy(dtype=float), (horizon, 1))
+        errors["genre"]["model"].append(np.abs(g_pred - g_actual).ravel())
+        errors["genre"]["4-week average"].append(np.abs(g_base - g_actual).ravel())
+        totals["genre"] += g_actual.sum()
+
+        b_pred = (forecaster.forecast(by="book", horizon_weeks=horizon).groupby("book_id")["predicted_loans"]
+                  .sum().reindex(book_ids, fill_value=0.0).to_numpy())
+        b_actual = by_book.reindex(future, fill_value=0).sum().to_numpy(dtype=float)
+        b_base = by_book.reindex(past, fill_value=0).sum().to_numpy(dtype=float)
+        errors["book"]["model"].append(np.abs(b_pred - b_actual))
+        errors["book"]["last 4 weeks repeated"].append(np.abs(b_base - b_actual))
+        totals["book"] += b_actual.sum()
+
+    result = {"origins": origins, "horizon": horizon}
+    for level, methods in errors.items():
+        result[level] = {}
+        for name, errs in methods.items():
+            flat = np.concatenate(errs)
+            result[level][name] = {"mae": float(flat.mean()), "wape": float(flat.sum() / totals[level])}
+    return result
