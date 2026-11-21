@@ -1,0 +1,218 @@
+{
+  "generated_on": "2026-11-21 06:49",
+  "as_of": "2026-11-16",
+  "quick": false,
+  "seed": 42,
+  "books": 100,
+  "students": 150,
+  "loans": 7267,
+  "search": {
+    "queries": 35,
+    "hits": 34,
+    "hit_rate": 0.9714285714285714,
+    "k": 3,
+    "misses": [
+      [
+        "how to focus",
+        [
+          "Good to Great",
+          "A Mind for Numbers"
+        ]
+      ]
+    ]
+  },
+  "recommender": {
+    "established students": {
+      "students_tested": 147,
+      "k": 10,
+      "test_days": 60,
+      "methods": {
+        "hybrid": {
+          "hit_rate": 0.8095238095238095,
+          "recall": 0.3323055629178079
+        },
+        "content": {
+          "hit_rate": 0.7074829931972789,
+          "recall": 0.29503612411775665
+        },
+        "collaborative": {
+          "hit_rate": 0.6802721088435374,
+          "recall": 0.2732568640731905
+        },
+        "popular": {
+          "hit_rate": 0.5918367346938775,
+          "recall": 0.22071124265001807
+        },
+        "random": {
+          "hit_rate": 0.5510204081632653,
+          "recall": 0.1852180699119474
+        }
+      }
+    },
+    "new students (3 loans)": {
+      "students_tested": 148,
+      "k": 10,
+      "test_days": 60,
+      "methods": {
+        "hybrid": {
+          "hit_rate": 0.6554054054054054,
+          "recall": 0.19590047715047704
+        },
+        "content": {
+          "hit_rate": 0.527027027027027,
+          "recall": 0.14451938826938826
+        },
+        "collaborative": {
+          "hit_rate": 0.5472972972972973,
+          "recall": 0.13694616194616185
+        },
+        "popular": {
+          "hit_rate": 0.36486486486486486,
+          "recall": 0.08596141096141095
+        },
+        "random": {
+          "hit_rate": 0.46621621621621623,
+          "recall": 0.1109035671535671
+        }
+      }
+    }
+  },
+  "forecast": {
+    "origins": 6,
+    "horizon": 4,
+    "genre": {
+      "model": {
+        "mae": 2.5457878787878787,
+        "wape": 0.2649144659046117
+      },
+      "4-week average": {
+        "mae": 2.912878787878788,
+        "wape": 0.30311391407173827
+      }
+    },
+    "book": {
+      "model": {
+        "mae": 1.4957866666666666,
+        "wape": 0.3537532518722901
+      },
+      "last 4 weeks repeated": {
+        "mae": 1.965,
+        "wape": 0.4647221127315727
+      }
+    }
+  },
+  "chatbot": {
+    "dev": {
+      "sentences": 52,
+      "strict_accuracy": 0.9230769230769231,
+      "accuracy_if_sure": 1.0,
+      "answered": 0.9230769230769231,
+      "wrong": [
+        [
+          "can i borrow more than five books",
+          "policy",
+          "my_loans",
+          0.27
+        ],
+        [
+          "do i get warnings before a due date",
+          "policy",
+          "due_soon",
+          0.27
+        ],
+        [
+          "i need another two weeks with it",
+          "renew",
+          "renew",
+          0.3
+        ],
+        [
+          "calculate 15 percent of 200",
+          "unknown",
+          "unknown",
+          0.37
+        ]
+      ],
+      "per_intent": {
+        "availability": 1.0,
+        "due_soon": 1.0,
+        "overdue": 1.0,
+        "recommendations": 1.0,
+        "search": 1.0,
+        "author_search": 1.0,
+        "forecast": 1.0,
+        "policy": 0.5,
+        "my_loans": 1.0,
+        "renew": 0.75,
+        "similar": 1.0,
+        "smalltalk": 1.0,
+        "help": 1.0,
+        "unknown": 0.75
+      }
+    },
+    "test": {
+      "sentences": 62,
+      "strict_accuracy": 0.9193548387096774,
+      "accuracy_if_sure": 0.95,
+      "answered": 0.967741935483871,
+      "wrong": [
+        [
+          "what does adichie have in the library",
+          "author_search",
+          "availability",
+          0.27
+        ],
+        [
+          "can i renew a loan",
+          "policy",
+          "renew",
+          0.82
+        ],
+        [
+          "will i get reminders before the due date",
+          "policy",
+          "policy",
+          0.39
+        ],
+        [
+          "translate hello into french",
+          "unknown",
+          "smalltalk",
+          0.77
+        ],
+        [
+          "recommend a good restaurant",
+          "unknown",
+          "recommendations",
+          0.71
+        ]
+      ],
+      "per_intent": {
+        "availability": 1.0,
+        "due_soon": 1.0,
+        "overdue": 1.0,
+        "recommendations": 1.0,
+        "search": 1.0,
+        "author_search": 0.6666666666666666,
+        "forecast": 1.0,
+        "policy": 0.6666666666666666,
+        "my_loans": 1.0,
+        "renew": 1.0,
+        "similar": 1.0,
+        "smalltalk": 1.0,
+        "help": 1.0,
+        "unknown": 0.5
+      }
+    }
+  },
+  "agent": {
+    "date": "2026-11-16",
+    "lines": [
+      "30 overdue loans, 11 due soon",
+      "8 overdue by more than 14 days (final notice)",
+      "24 books where the forecast says we need more copies",
+      "8 overdue copies of books that are fully out and in demand (priority chase)"
+    ]
+  },
+  "chatbot_min_confidence": 0.45
+}
