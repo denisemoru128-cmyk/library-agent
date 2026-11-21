@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from library_agent import circulation, db
+from library_agent import circulation, db, report
 from library_agent.agent import LibraryAgent
 from library_agent.chatbot import LibraryChatbot
 from library_agent.config import (
@@ -23,7 +23,7 @@ from library_agent.recommender import Recommender
 from library_agent.search import BookSearch
 
 STUDENT_SECTIONS = ["Search", "For you", "My loans", "Notifications", "Ask the assistant"]
-LIBRARIAN_SECTIONS = ["Dashboard", "Circulation desk", "Agent", "Demand & buying", "Catalogue"]
+LIBRARIAN_SECTIONS = ["Dashboard", "Circulation desk", "Agent", "Demand & buying", "Catalogue", "Model quality"]
 EXAMPLE_QUESTIONS = [
     "Find books about machine learning", "Is Clean Code available?", "What is due this week?",
     "How much do I owe in fines?", "Renew Clean Code", "Books similar to Atomic Habits",
@@ -229,7 +229,7 @@ def _student_view(conn, student_id: int, m: Models) -> None:
     student = db.get_student(conn, student_id)
     summary = circulation.student_summary(conn, student_id)
     st.subheader(f"{student['name']}  ·  {student['reg_no']}")
-    st.caption(f"{student['department']}  ·  interests: {student['interests']}")
+    st.caption(f"{student['department']}  ·  interests: {str(student['interests']).replace('|', ', ')}")
     columns = st.columns(4)
     columns[0].metric("Books on loan", f"{summary['active_loans']} / {MAX_ACTIVE_LOANS}")
     columns[1].metric("Overdue", summary["overdue"])
@@ -411,6 +411,25 @@ def _librarian_catalogue(conn, m: Models) -> None:
     st.dataframe(catalogue.drop(columns=["description"]), hide_index=True, width="stretch")
 
 
+def _librarian_quality(conn, m: Models) -> None:
+    results = report.load_results()
+    if results is None:
+        st.info("No results yet. Run `python evaluate.py` in the project folder (about 90 seconds), "
+                "then reload this page.")
+        return
+    search, rec = results["search"], results["recommender"]["established students"]["methods"]
+    genre, chat = results["forecast"]["genre"], results["chatbot"]["test"]
+    columns = st.columns(4)
+    columns[0].metric(f"Search hit rate @{search['k']}", f"{search['hit_rate']:.0%}")
+    columns[1].metric("Recommender hit rate @10", f"{rec['hybrid']['hit_rate']:.0%}",
+                      delta=f"{(rec['hybrid']['hit_rate'] - rec['popular']['hit_rate']) * 100:+.0f} pts vs most popular")
+    columns[2].metric("Forecast error (genre WAPE)", f"{genre['model']['wape']:.1%}", delta_color="inverse",
+                      delta=f"{(genre['model']['wape'] - genre['4-week average']['wape']) * 100:+.1f} pts vs 4-week average")
+    columns[3].metric("Chatbot accuracy (held-out)", f"{chat['strict_accuracy']:.0%}")
+    st.caption("Measured by `evaluate.py` on simulated data. Run it again after re-seeding to refresh these numbers.")
+    st.markdown(report.render_markdown(results))
+
+
 def _librarian_view(conn, m: Models) -> None:
     st.subheader("Librarian desk")
     _show_flash()
@@ -421,6 +440,7 @@ def _librarian_view(conn, m: Models) -> None:
         "Agent": _librarian_agent,
         "Demand & buying": _librarian_demand,
         "Catalogue": _librarian_catalogue,
+        "Model quality": _librarian_quality,
     }[section](conn, m)
 
 
