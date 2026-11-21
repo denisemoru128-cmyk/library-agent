@@ -43,8 +43,16 @@ def fresh_conn(db_path, tmp_path):
 def books(conn):
     return db.books_df(conn)
 
+
 @pytest.fixture(scope="session")
 def forecaster(conn):
     """One trained demand forecaster shared by every test that needs it (training takes a few seconds)."""
     from library_agent.forecast import DemandForecaster
     return DemandForecaster(db.books_df(conn), db.loans_df(conn), AS_OF)
+
+
+@pytest.fixture(scope="session")
+def quick_results(db_path):
+    """The real evaluation (quick mode, about 40 s), run once and shared by the tests that read its results."""
+    import evaluate
+    return evaluate.collect(quick=True, database=db_path)

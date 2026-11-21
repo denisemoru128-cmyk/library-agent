@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from library_agent import circulation, config, db
+from library_agent import circulation, config, db, report
 
 APP_FILE = str(Path(__file__).resolve().parent.parent / "app.py")
 
@@ -189,3 +189,19 @@ def test_adding_a_duplicate_title_is_refused(app):
     _button(at, "Add book").click().run()
 
     assert "already in the catalogue" in at.error[0].value
+
+
+def test_model_quality_section_shows_the_saved_results(app, quick_results, tmp_path, monkeypatch):
+    monkeypatch.setattr(report, "RESULTS_DIR", tmp_path)
+    report.save_results(quick_results)
+    at = app(role="Librarian", section="Model quality")
+
+    assert [m.label for m in at.metric][:2] == ["Search hit rate @3", "Recommender hit rate @10"]
+    assert any("Evaluation results" in m.value for m in at.markdown)
+
+
+def test_model_quality_section_says_how_to_create_the_results(app, tmp_path, monkeypatch):
+    monkeypatch.setattr(report, "RESULTS_DIR", tmp_path / "nothing_here")
+    at = app(role="Librarian", section="Model quality")
+
+    assert any("python evaluate.py" in info.value for info in at.info)

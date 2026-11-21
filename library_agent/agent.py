@@ -162,5 +162,6 @@ class LibraryAgent:
         ]
         if report is not None:
             sent = {k: v for k, v in report.notifications.items() if v}
-            lines.append("new notifications: " + (", ".join(f"{v} {k}" for k, v in sent.items()) or "none (already sent today)"))
+            lines.append("new notifications: " + (", ".join(f"{v} {k.replace('_', ' ')}" for k, v in sent.items())
+                                                  or "none (already sent today)"))
         return lines
