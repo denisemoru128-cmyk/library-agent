@@ -1,11 +1,11 @@
 {
-  "generated_on": "2026-11-21 06:49",
-  "as_of": "2026-11-16",
+  "generated_on": "2026-11-21 12:24",
+  "as_of": "2026-11-21",
   "quick": false,
   "seed": 42,
   "books": 100,
   "students": 150,
-  "loans": 7267,
+  "loans": 7051,
   "search": {
     "queries": 35,
     "hits": 34,
@@ -23,56 +23,56 @@
   },
   "recommender": {
     "established students": {
-      "students_tested": 147,
+      "students_tested": 146,
       "k": 10,
       "test_days": 60,
       "methods": {
         "hybrid": {
-          "hit_rate": 0.8095238095238095,
-          "recall": 0.3323055629178079
+          "hit_rate": 0.6986301369863014,
+          "recall": 0.2931289410741466
         },
         "content": {
-          "hit_rate": 0.7074829931972789,
-          "recall": 0.29503612411775665
+          "hit_rate": 0.7191780821917808,
+          "recall": 0.2964312894107414
         },
         "collaborative": {
-          "hit_rate": 0.6802721088435374,
-          "recall": 0.2732568640731905
+          "hit_rate": 0.6232876712328768,
+          "recall": 0.21591650358773634
         },
         "popular": {
-          "hit_rate": 0.5918367346938775,
-          "recall": 0.22071124265001807
+          "hit_rate": 0.6095890410958904,
+          "recall": 0.21873505109806468
         },
         "random": {
-          "hit_rate": 0.5510204081632653,
-          "recall": 0.1852180699119474
+          "hit_rate": 0.4726027397260274,
+          "recall": 0.1506006740595781
         }
       }
     },
     "new students (3 loans)": {
-      "students_tested": 148,
+      "students_tested": 144,
       "k": 10,
       "test_days": 60,
       "methods": {
         "hybrid": {
-          "hit_rate": 0.6554054054054054,
-          "recall": 0.19590047715047704
+          "hit_rate": 0.6458333333333334,
+          "recall": 0.17271522844439505
         },
         "content": {
-          "hit_rate": 0.527027027027027,
-          "recall": 0.14451938826938826
+          "hit_rate": 0.5972222222222222,
+          "recall": 0.17208399239649233
         },
         "collaborative": {
-          "hit_rate": 0.5472972972972973,
-          "recall": 0.13694616194616185
+          "hit_rate": 0.5138888888888888,
+          "recall": 0.1380459625251291
         },
         "popular": {
-          "hit_rate": 0.36486486486486486,
-          "recall": 0.08596141096141095
+          "hit_rate": 0.4375,
+          "recall": 0.1028493304534971
         },
         "random": {
-          "hit_rate": 0.46621621621621623,
-          "recall": 0.1109035671535671
+          "hit_rate": 0.4236111111111111,
+          "recall": 0.10409534524117858
         }
       }
     }
@@ -82,22 +82,22 @@
     "horizon": 4,
     "genre": {
       "model": {
-        "mae": 2.5457878787878787,
-        "wape": 0.2649144659046117
+        "mae": 2.353386363636364,
+        "wape": 0.24221988304093572
       },
       "4-week average": {
-        "mae": 2.912878787878788,
-        "wape": 0.30311391407173827
+        "mae": 2.922348484848485,
+        "wape": 0.3007797270955166
       }
     },
     "book": {
       "model": {
-        "mae": 1.4957866666666666,
-        "wape": 0.3537532518722901
+        "mae": 1.4907266666666665,
+        "wape": 0.348707992202729
       },
       "last 4 weeks repeated": {
-        "mae": 1.965,
-        "wape": 0.4647221127315727
+        "mae": 2.06,
+        "wape": 0.4818713450292398
       }
     }
   },
@@ -206,12 +206,12 @@
     }
   },
   "agent": {
-    "date": "2026-11-16",
+    "date": "2026-11-21",
     "lines": [
-      "30 overdue loans, 11 due soon",
-      "8 overdue by more than 14 days (final notice)",
-      "24 books where the forecast says we need more copies",
-      "8 overdue copies of books that are fully out and in demand (priority chase)"
+      "32 overdue loans, 11 due soon",
+      "6 overdue by more than 14 days (final notice)",
+      "22 books where the forecast says we need more copies",
+      "7 overdue copies of books that are fully out and in demand (priority chase)"
     ]
   },
   "chatbot_min_confidence": 0.45

@@ -180,3 +180,20 @@ FAQ = [
                    "and an overdue notice every day a book is late."),
     },
 ]
+
+
+# Words a student may use for a genre. Used to turn "recommend law books" into a genre filter.
+# The longest matching phrase wins, so "computer science" beats the bare word "science".
+GENRE_WORDS = {
+    "Computer Science": ["computer science", "computing", "programming", "software", "cs"],
+    "Business & Economics": ["business", "economics", "finance", "entrepreneurship"],
+    "African Literature": ["african literature", "african fiction", "african novels"],
+    "World Fiction": ["world fiction", "fiction", "novels", "novel"],
+    "Natural Sciences": ["natural sciences", "natural science", "science", "physics", "chemistry", "biology"],
+    "History & Politics": ["history", "politics", "political"],
+    "Self-Development": ["self development", "self-development", "self help", "self-help", "personal development"],
+    "Mathematics & Statistics": ["mathematics", "maths", "math", "statistics", "stats"],
+    "Engineering": ["engineering"],
+    "Health & Medicine": ["health", "medicine", "medical"],
+    "Law & Governance": ["law", "legal", "governance", "constitution"],
+}

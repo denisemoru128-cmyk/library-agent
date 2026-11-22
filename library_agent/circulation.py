@@ -79,12 +79,40 @@ def due_soon(conn, on: date | None = None, within_days: int = REMINDER_DAYS_BEFO
 
 
 def student_summary(conn, student_id: int, on: date | None = None) -> dict:
+    """A student's position in one place, so every screen and the chatbot say the same thing.
+
+    ``slots_free`` is how many more books the limit allows. ``can_borrow_more`` is what the student
+    can really borrow now: zero while any book is overdue, because the rules pause borrowing.
+    ``blocking_title`` is the book to return first (the longest overdue), or None.
+    """
     loans = open_loans(conn, student_id, on)
+    late = loans[loans["days_left"] < 0].sort_values("days_left")
+    slots_free = max(MAX_ACTIVE_LOANS - len(loans), 0)
+    paused = not late.empty
     return {
         "active_loans": len(loans),
-        "can_borrow_more": max(MAX_ACTIVE_LOANS - len(loans), 0),
-        "overdue": int((loans["days_left"] < 0).sum()),
+        "slots_free": slots_free,
+        "can_borrow_more": 0 if paused else slots_free,
+        "borrowing_paused": paused,
+        "blocking_title": None if late.empty else str(late.iloc[0]["title"]),
+        "overdue": len(late),
         "fines_owed": int(loans["fine"].sum()),
+    }
+
+
+def return_outlook(conn, book_id: int, on: date | None = None) -> dict:
+    """When will a book that is fully out come back?
+
+    ``next_due`` is the earliest due date among copies that are still on time (None if there is
+    none). ``late_copies`` are copies already past their due date: they have no reliable return date.
+    """
+    loans = open_loans(conn, on=on)
+    loans = loans[loans["book_id"] == book_id]
+    on_time = loans[loans["days_left"] >= 0].sort_values("days_left")
+    return {
+        "copies_out": len(loans),
+        "next_due": None if on_time.empty else on_time.iloc[0]["due_on"].date(),
+        "late_copies": int((loans["days_left"] < 0).sum()),
     }
 
 
@@ -143,6 +171,12 @@ def renew_loan(conn, loan_id: int, on: date | None = None) -> Outcome:
             return Outcome(False, "That loan is not active.")
         if date.fromisoformat(loan["due_on"]) < on:
             return Outcome(False, "Overdue books can not be renewed. Please return it and pay the fine.")
+        # The rule the app shows to students: any overdue book pauses borrowing AND renewing.
+        others = open_loans(conn, loan["student_id"], on)
+        late = others[others["days_left"] < 0].sort_values("days_left")
+        if not late.empty:
+            return Outcome(False, f"“{loan['title']}” can not be renewed while “{late.iloc[0]['title']}” "
+                                  "is overdue. Return that book first.")
         if loan["renewals"] >= MAX_RENEWALS:
             return Outcome(False, f"“{loan['title']}” has already been renewed {MAX_RENEWALS} time(s).")
         new_due = on + timedelta(days=LOAN_DAYS)

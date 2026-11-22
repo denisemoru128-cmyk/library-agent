@@ -25,8 +25,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.pipeline import make_pipeline
 
-from . import circulation, db, nlp
-from .chat_data import FAQ, INTENT_EXAMPLES
+from . import circulation, db, dates, nlp
+from .chat_data import FAQ, GENRE_WORDS, INTENT_EXAMPLES
 from .config import CHATBOT_MIN_CONFIDENCE, FORECAST_HORIZON_WEEKS, MAX_ACTIVE_LOANS
 
 FAQ_MIN_SIMILARITY = 0.25   # below this the question does not match any rule entry
@@ -167,6 +167,18 @@ class LibraryChatbot:
             entities["student_id"] = int(student.group(1))
         return entities
 
+    def genre_in(self, query: str) -> str | None:
+        """The catalogue genre a message names ("recommend law books" -> Law & Governance), or None.
+        The longest matching phrase wins, so "computer science" is not read as plain "science"."""
+        text = " " + re.sub(r"[^a-z0-9\- ]+", " ", nlp.clean(query).replace("&", " and ")) + " "
+        known = set(self.books["genre"])
+        best, best_length = None, 0
+        for genre in known:
+            for phrase in {genre.lower().replace("&", "and"), *GENRE_WORDS.get(genre, [])}:
+                if f" {phrase} " in text and len(phrase) > best_length:
+                    best, best_length = genre, len(phrase)
+        return best
+
     # ----------------------------------------------------------------- helpers
     @staticmethod
     def _records(frame: pd.DataFrame) -> list[dict]:
@@ -241,24 +253,50 @@ class LibraryChatbot:
         if title is None:
             return self._reply(turn, "Please include a catalog title, for example: Is 'Clean Code' available?")
         book = self._book_row(title)
-        count = int(db.availability_df(turn.conn).set_index("book_id").loc[int(book["book_id"]), "available"])
-        message = (
-            f"Yes. {title} has {count} available cop{'y' if count == 1 else 'ies'}."
-            if count > 0 else f"No copies of {title} are currently available."
-        )
-        return self._reply(turn, prefix + message,
-                           [{"book_id": int(book["book_id"]), "title": title, "available": count}])
+        book_id = int(book["book_id"])
+        count = int(db.availability_df(turn.conn).set_index("book_id").loc[book_id, "available"])
+        record = {"book_id": book_id, "title": title, "available": count, "next_due": None}
+        if count > 0:
+            message = f"Yes. {title} has {count} available cop{'y' if count == 1 else 'ies'}."
+            message += self._eligibility_note(turn)
+        else:
+            outlook = circulation.return_outlook(turn.conn, book_id)
+            message = self._all_out_message(title, int(book["copies"]), outlook)
+            record["next_due"] = outlook["next_due"].isoformat() if outlook["next_due"] else None
+        return self._reply(turn, prefix + message, [record])
+
+    @staticmethod
+    def _all_out_message(title: str, copies: int, outlook: dict) -> str:
+        """Say when a fully borrowed book is expected back, instead of a bare 'not available'."""
+        if outlook["copies_out"] == 0:
+            return f"No copies of {title} are available: the library has none on the shelf."
+        owned = "The only copy is out" if copies == 1 else f"All {copies} copies are out"
+        late = outlook["late_copies"]
+        late_note = (f" {late} {'copy is' if late == 1 else 'copies are'} already overdue." if late else "")
+        if outlook["next_due"] is None:
+            return f"{owned}, and {'it is' if copies == 1 else 'every copy is'} overdue, so there is no return date yet."
+        return f"{owned}. The next is due back on {dates.short(outlook['next_due'])}.{late_note}"
+
+    @staticmethod
+    def _eligibility_note(turn: Turn) -> str:
+        """Add what stops THIS student from borrowing, so "Yes, 3 copies" is never misleading."""
+        if turn.student_id is None:
+            return ""
+        summary = circulation.student_summary(turn.conn, turn.student_id)
+        if summary["borrowing_paused"]:
+            return f" But you can not borrow until you return “{summary['blocking_title']}”."
+        if summary["slots_free"] == 0:
+            return f" But you already have {MAX_ACTIVE_LOANS} books out. Return one first."
+        return ""
 
     def _handle_due_soon(self, turn: Turn) -> dict:
+        # A rolling window: "this week" is the next 7 days, "next week" the 7 after that. (A calendar
+        # week would leave a student asking on a Saturday with just two days.)
         as_of = db.today(turn.conn)
-        if "next week" in turn.query.lower():
-            start = as_of + timedelta(days=7 - as_of.weekday())
-            end = start + timedelta(days=6)
-        else:
-            start = as_of
-            end = as_of + timedelta(days=6 - as_of.weekday())
+        start = as_of + timedelta(days=7 if "next week" in turn.query.lower() else 0)
+        end = start + timedelta(days=6)
         result = db.due_loans_df(turn.conn, start=start, end=end, student_id=turn.student_id)
-        return self._reply(turn, f"Found {len(result)} loan(s) due between {start} and {end}.",
+        return self._reply(turn, f"Found {len(result)} loan(s) due between {dates.short(start)} and {dates.short(end)}.",
                            self._records(result))
 
     def _handle_overdue(self, turn: Turn) -> dict:
@@ -278,8 +316,13 @@ class LibraryChatbot:
     def _handle_recommendations(self, turn: Turn) -> dict:
         if turn.student_id is None:
             return self._reply(turn, "Select a student first so I can personalize recommendations.")
-        result = self.recommender.recommend(turn.student_id, top_n=5, availability=db.availability_df(turn.conn))
-        return self._reply(turn, f"Here are {len(result)} recommendations for you.", self._records(result))
+        genre = self.genre_in(turn.query)
+        result = self.recommender.recommend(turn.student_id, top_n=5, availability=db.availability_df(turn.conn),
+                                            genre=genre)
+        if genre and result.empty:
+            return self._reply(turn, f"I have no new {genre} books to suggest: you have borrowed them all.")
+        what = f"{genre} picks" if genre else "recommendations"
+        return self._reply(turn, f"Here are {len(result)} {what} for you.", self._records(result))
 
     def _handle_search(self, turn: Turn) -> dict:
         result = self.search_engine.search(turn.query, top_n=5, availability=db.availability_df(turn.conn))
@@ -337,7 +380,8 @@ class LibraryChatbot:
         message = (f"You have {summary['active_loans']} book(s) on loan"
                    + (f", {summary['overdue']} overdue" if summary["overdue"] else "")
                    + f". Fines so far: KES {summary['fines_owed']}. "
-                   f"You can borrow {summary['can_borrow_more']} more.")
+                   + (f"Borrowing is paused until you return “{summary['blocking_title']}”."
+                      if summary["borrowing_paused"] else f"You can borrow {summary['can_borrow_more']} more."))
         return self._reply(turn, message, self._records(table))
 
     def _handle_renew(self, turn: Turn) -> dict:

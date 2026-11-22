@@ -1,6 +1,6 @@
 # Evaluation results
 
-Generated 2026-11-21 06:49 on simulated data (100 books, 150 students, 7,267 loans, library date 2026-11-16, seed 42).
+Generated 2026-11-21 12:24 on simulated data (100 books, 150 students, 7,051 loans, library date 2026-11-21, seed 42).
 
 ## 1. Search
 
@@ -12,27 +12,25 @@ Missed: “how to focus” (returned: Good to Great, A Mind for Numbers).
 
 Temporal split: the model sees loans only up to 60 days ago, then we check whether the books each student really borrowed afterwards are in their top 10. Hit rate = students with at least one correct book; recall = share of their future books found.
 
-**established students** (147 students tested)
+**established students** (146 students tested)
 
 | Method | Hit rate @10 | Recall @10 |
 |---|---|---|
-| Hybrid (our model) | 81% | 33% |
-| Content-based only | 71% | 30% |
-| Collaborative only | 68% | 27% |
-| Most popular (baseline) | 59% | 22% |
-| Random (baseline) | 55% | 19% |
+| Hybrid (our model) | 70% | 29% |
+| Content-based only | 72% | 30% |
+| Collaborative only | 62% | 22% |
+| Most popular (baseline) | 61% | 22% |
+| Random (baseline) | 47% | 15% |
 
-**new students (3 loans)** (148 students tested)
+**new students (3 loans)** (144 students tested)
 
 | Method | Hit rate @10 | Recall @10 |
 |---|---|---|
-| Hybrid (our model) | 66% | 20% |
-| Content-based only | 53% | 14% |
-| Collaborative only | 55% | 14% |
-| Most popular (baseline) | 36% | 9% |
-| Random (baseline) | 47% | 11% |
-
-“Most popular” scores below random for new students. A likely reason is that in this simulated library students borrow mostly within their own interests, which one list for everyone ignores.
+| Hybrid (our model) | 65% | 17% |
+| Content-based only | 60% | 17% |
+| Collaborative only | 51% | 14% |
+| Most popular (baseline) | 44% | 10% |
+| Random (baseline) | 42% | 10% |
 
 ## 3. Demand forecast
 
@@ -40,10 +38,10 @@ Backtest: 6 past dates, each forecasting the next 4 weeks using only earlier dat
 
 | Level | Method | Average error (loans) | WAPE |
 |---|---|---|---|
-| genre | model | 2.55 | 26.5% |
-| genre | 4-week average | 2.91 | 30.3% |
-| book | model | 1.50 | 35.4% |
-| book | last 4 weeks repeated | 1.97 | 46.5% |
+| genre | model | 2.35 | 24.2% |
+| genre | 4-week average | 2.92 | 30.1% |
+| book | model | 1.49 | 34.9% |
+| book | last 4 weeks repeated | 2.06 | 48.2% |
 
 Per-book forecasts are much noisier than per-genre ones, because one book has few loans per week.
 
@@ -66,12 +64,12 @@ Sentences the bot got wrong on the held-out set (expected intent, what it said, 
 
 “can i renew a loan” counts as wrong because the classifier alone says *renew*. The chat handler turns questions like this into the rules answer, so a student still gets the right reply and nothing is renewed.
 
-## 5. Agent decisions on 2026-11-16 (dry run, nothing changed)
+## 5. Agent decisions on 2026-11-21 (dry run, nothing changed)
 
-- 30 overdue loans, 11 due soon
-- 8 overdue by more than 14 days (final notice)
-- 24 books where the forecast says we need more copies
-- 8 overdue copies of books that are fully out and in demand (priority chase)
+- 32 overdue loans, 11 due soon
+- 6 overdue by more than 14 days (final notice)
+- 22 books where the forecast says we need more copies
+- 7 overdue copies of books that are fully out and in demand (priority chase)
 
 ## Limits of these results
 

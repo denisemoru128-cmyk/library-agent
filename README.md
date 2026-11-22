@@ -28,13 +28,14 @@ python -m pip install -r requirements.txt
 Generate the simulated SQLite database, run the test suite and start the app:
 
 ```powershell
-python seed.py --as-of 2026-11-16
+python seed.py
 python -m pytest
 streamlit run app.py
 ```
 
-The fixed `--as-of` date makes the demo and every number in `results/` repeatable. Plain `python seed.py` ends
-the history on today's date instead, so the numbers would differ slightly from the saved ones.
+`python seed.py` makes the library's date today's real date (the weekday on screen is worked out from it).
+The saved numbers in `results/` were made with `python seed.py --as-of 2026-11-21`; use that command if you want
+to reproduce them exactly, because a different date gives a slightly different simulated history.
 
 `library-agent/` is the project directory; `library_agent/` is the single
 importable Python package (underscores are required in package names). The
@@ -44,8 +45,8 @@ project has one test suite in `tests/`; seeded runtime data is stored in
 
 ## Using the app
 
-Choose **Student** or **Librarian** in the sidebar. The library date is simulated (16 November 2026 with the seed command above)
-and all people, books and loans are generated.
+Choose **Student** or **Librarian** in the sidebar. The library date is simulated: it starts on the day you ran
+`seed.py` and the librarian can move it forward. All people, books and loans are generated.
 
 - **Student:** Search (try `machin lerning`), For you, My loans (renew, return, borrow), Notifications,
   Ask the assistant (try "find books about statistics", then "is it available?").
@@ -58,8 +59,11 @@ and all people, books and loans are generated.
 
 ```powershell
 python evaluate.py          # about 90 seconds; add --quick for about 40
-python -m pytest -v > results\test_results.txt
+python -m pytest -v | Out-File -Encoding utf8 results\test_results.txt
 ```
+
+(`Out-File -Encoding utf8` matters: plain `>` in Windows PowerShell 5 writes UTF-16, which is hard to read in
+other tools. `pytest.ini` already stops pytest from treating files in `results/` as tests.)
 
 `evaluate.py` writes `results/evaluation.md` (tables for the report) and `results/evaluation.json` (shown in
 the app under Librarian, Model quality). It measures search hit rate, the recommender against popularity and

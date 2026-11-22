@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from library_agent import circulation, db
 from library_agent.config import FINE_PER_DAY, LOAN_DAYS, MAX_ACTIVE_LOANS
-from tests.conftest import AS_OF
+from tests.conftest import AS_OF, student_with_late_and_ok_loan
 
 
 def _free_student(conn):
@@ -107,3 +107,43 @@ def test_library_stats(conn):
     assert 0 < stats["utilisation"] < 1
     assert stats["copies_out"] == len(circulation.open_loans(conn))
     assert stats["overdue"] == len(circulation.overdue_loans(conn))
+
+
+def test_an_overdue_book_blocks_renewing_the_students_other_loans(fresh_conn):
+    student_id, late_id, ok_id, _ = student_with_late_and_ok_loan(fresh_conn)
+
+    refused = circulation.renew_loan(fresh_conn, ok_id)
+
+    assert not refused.ok and "overdue" in refused.message
+    assert db.get_loan(fresh_conn, ok_id)["renewals"] == 0
+    circulation.return_book(fresh_conn, late_id)                      # returning the late book lifts the block
+    assert circulation.renew_loan(fresh_conn, ok_id).ok
+
+
+def test_summary_pauses_borrowing_while_a_book_is_overdue(fresh_conn):
+    student_id, late_id, _, _ = student_with_late_and_ok_loan(fresh_conn)
+
+    paused = circulation.student_summary(fresh_conn, student_id)
+    assert paused["borrowing_paused"] and paused["can_borrow_more"] == 0 and paused["overdue"] == 1
+    assert paused["slots_free"] == MAX_ACTIVE_LOANS - paused["active_loans"] > 0     # the limit alone would allow more
+    assert paused["blocking_title"] == db.get_loan(fresh_conn, late_id)["title"]
+
+    circulation.return_book(fresh_conn, late_id)
+    free = circulation.student_summary(fresh_conn, student_id)
+    assert not free["borrowing_paused"] and free["can_borrow_more"] == free["slots_free"]
+    assert free["blocking_title"] is None
+
+
+def test_return_outlook_gives_the_next_due_date_and_counts_late_copies(fresh_conn):
+    book_id = db.add_book(fresh_conn, "Outlook Test", "A. Writer", "Test", "A test book.", 2)
+    first, second = [row["student_id"] for row in fresh_conn.execute(
+        "SELECT student_id FROM students WHERE student_id NOT IN "
+        "(SELECT student_id FROM loans WHERE returned_on IS NULL) LIMIT 2")]
+    circulation.issue_book(fresh_conn, first, book_id, on=AS_OF - timedelta(days=20))     # due 6 days ago
+    on_time = circulation.issue_book(fresh_conn, second, book_id, on=AS_OF)
+
+    outlook = circulation.return_outlook(fresh_conn, book_id)
+    assert outlook == {"copies_out": 2, "next_due": AS_OF + timedelta(days=LOAN_DAYS), "late_copies": 1}
+
+    circulation.return_book(fresh_conn, on_time.loan_id)
+    assert circulation.return_outlook(fresh_conn, book_id) == {"copies_out": 1, "next_due": None, "late_copies": 1}

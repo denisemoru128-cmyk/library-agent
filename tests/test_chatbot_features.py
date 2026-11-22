@@ -2,15 +2,17 @@
 
 The five basic tests in test_chatbot.py still apply; these cover what was added on top.
 """
+from datetime import date, timedelta
+
 import pytest
 
-from library_agent import circulation, db
+from library_agent import circulation, dates, db
 from library_agent.chat_data import INTENT_EXAMPLES
 from library_agent.chatbot import LibraryChatbot
 from library_agent.evaluation import CHATBOT_DEV, CHATBOT_TEST, evaluate_chatbot
 from library_agent.recommender import Recommender
 from library_agent.search import BookSearch
-from tests.conftest import AS_OF
+from tests.conftest import AS_OF, student_with_late_and_ok_loan
 
 
 @pytest.fixture(scope="module")
@@ -196,3 +198,100 @@ def test_chatbot_meets_its_accuracy_targets_on_unseen_sentences(bot):
     assert dev["strict_accuracy"] >= 0.80
     assert test["strict_accuracy"] >= 0.80
     assert test["accuracy_if_sure"] >= 0.85
+
+
+# ---- answers that respect who is asking and what happens next -----------------------
+def _plain_title(conn, available: bool):
+    """A catalogue title that can be quoted in a message, with a free copy (or with all copies out)."""
+    books = db.books_df(conn).merge(db.availability_df(conn)[["book_id", "available"]], on="book_id")
+    wanted = books[(books["available"] > 0) == available]
+    return wanted[~wanted["title"].str.contains("['\",:]")].iloc[0]
+
+
+def test_yes_copies_free_is_not_misleading_for_a_student_who_cannot_borrow(bot, conn):
+    student_id = _overdue_student(conn)
+    title = _plain_title(conn, available=True)["title"]
+
+    blocked = bot.answer(f"Is '{title}' available?", conn, student_id=student_id)
+    anonymous = bot.answer(f"Is '{title}' available?", conn)
+
+    assert blocked["message"].startswith("Yes.") and "can not borrow until you return" in blocked["message"]
+    assert "can not borrow" not in anonymous["message"]
+
+
+def test_a_book_that_is_fully_out_says_when_it_is_due_back(bot, conn):
+    row = _plain_title(conn, available=False)
+    outlook = circulation.return_outlook(conn, int(row["book_id"]))
+    result = bot.answer(f"Is '{row['title']}' available?", conn)
+
+    assert result["message"].startswith(("All", "The only copy"))
+    assert result["data"][0]["available"] == 0
+    if outlook["next_due"]:
+        assert dates.short(outlook["next_due"]) in result["message"]
+        assert result["data"][0]["next_due"] == outlook["next_due"].isoformat()
+
+
+def test_late_copies_of_a_fully_out_book_are_mentioned(bot, conn):
+    books = db.books_df(conn).set_index("title")
+    for title in books.index:
+        outlook = circulation.return_outlook(conn, int(books.loc[title, "book_id"]))
+        stock = db.copies_available(conn, int(books.loc[title, "book_id"]))
+        if stock == 0 and outlook["late_copies"] and outlook["next_due"] and "'" not in title and "," not in title:
+            result = bot.answer(f"Is '{title}' available?", conn)
+            assert "overdue" in result["message"]
+            return
+    pytest.fail("the simulated data should have a fully-out book with a late copy")
+
+
+def test_my_loans_says_borrowing_is_paused_instead_of_offering_more(bot, conn):
+    result = bot.answer("what do i owe", conn, student_id=_overdue_student(conn))
+
+    assert result["intent"] == "my_loans"
+    assert "Borrowing is paused until you return" in result["message"]
+    assert "You can borrow" not in result["message"]
+
+
+def test_the_chat_will_not_renew_while_another_book_is_overdue(bot, fresh_conn):
+    student_id, _, loan_id, title = student_with_late_and_ok_loan(fresh_conn)
+    before = db.get_loan(fresh_conn, loan_id)
+
+    result = bot.answer(f"Renew '{title}'", fresh_conn, student_id=student_id)
+
+    assert "can not be renewed while" in result["message"]
+    assert db.get_loan(fresh_conn, loan_id)["due_on"] == before["due_on"]
+
+
+# ---- recommendations by topic ----------------------------------------------------
+def test_recommendations_can_be_limited_to_a_genre(bot, conn):
+    # a heavy reader may already have borrowed every law book, so take the first student with something new
+    results = (bot.answer("recommend law books", conn, student_id=student_id) for student_id in range(1, 20))
+    result = next(r for r in results if r["data"])
+
+    assert result["intent"] == "recommendations"
+    assert {row["genre"] for row in result["data"]} == {"Law & Governance"}
+    assert "Law & Governance" in result["message"]
+
+
+@pytest.mark.parametrize("message, genre", [
+    ("recommend computer science books", "Computer Science"),     # the longer phrase beats plain "science"
+    ("any science books?", "Natural Sciences"),
+    ("I want self-help books", "Self-Development"),
+    ("books on Politics", "History & Politics"),
+    ("recommend Law & Governance books", "Law & Governance"),
+    ("recommend books about web development", None),               # "development" alone is not a genre
+    ("recommend something", None),
+])
+def test_genre_words_are_recognised(bot, message, genre):
+    assert bot.genre_in(message) == genre
+
+
+# ---- real dates --------------------------------------------------------------------
+def test_due_this_week_means_the_next_seven_days_even_on_a_saturday(bot, fresh_conn):
+    saturday = date(2026, 11, 21)
+    db.set_today(fresh_conn, saturday)
+
+    result = bot.answer("what is due this week", fresh_conn)
+
+    expected = db.due_loans_df(fresh_conn, saturday, saturday + timedelta(days=6))
+    assert result["intent"] == "due_soon" and len(result["data"]) == len(expected) > 0
+    assert "Sat 21 Nov" in result["message"] and "Fri 27 Nov" in result["message"]
