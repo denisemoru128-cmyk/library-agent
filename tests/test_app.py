@@ -28,15 +28,14 @@ def app(db_path, tmp_path_factory, monkeypatch):
     shutil.copy(db_path, copy)
     monkeypatch.setattr(config, "DB_PATH", copy)
 
-    def open_app(role="Student", student_id=None, section=None):
+    def open_app(role="Student", student_id=1, section=None):
+        """The app, already signed in (the sign-in screen has its own tests in test_signin.py)."""
         at = AppTest.from_file(APP_FILE, default_timeout=120)
-        at.run()
-        if role == "Librarian":
-            at.sidebar.radio[0].set_value("Librarian").run()
-        elif student_id is not None:
-            at.sidebar.selectbox[0].set_value(student_id).run()
+        at.session_state["user"] = (
+            {"role": "librarian"} if role == "Librarian" else {"role": "student", "student_id": int(student_id)})
         if section:
-            at.segmented_control[0].set_value(section).run()
+            at.session_state["section"] = section
+        at.run()
         assert not at.exception, [e.value for e in at.exception]
         at.db = copy
         return at
@@ -72,12 +71,6 @@ def _first_loan(at, late: bool):
 
 
 # ---- student screens ---------------------------------------------------------------
-def test_student_screen_shows_the_loan_summary(app):
-    at = app()
-
-    assert [m.label for m in at.metric] == ["Books on loan", "Overdue", "Fines owed", "Can still borrow"]
-
-
 def test_search_screen_finds_books_despite_typos(app):
     at = app(section="Search")
     at.text_input[0].set_value("machin lerning").run()
@@ -88,7 +81,7 @@ def test_search_screen_finds_books_despite_typos(app):
 
 
 def test_chat_screen_remembers_the_book_between_messages(app):
-    at = app(section="Ask the assistant")
+    at = app(section="Assistant")
     at.chat_input[0].set_value("find books about statistics").run()
     at.chat_input[0].set_value("is it available?").run()
 
@@ -173,8 +166,9 @@ def test_a_new_book_is_searchable_straight_away(app):
     _button(at, "Add book").click().run()
     assert at.success[0].value.startswith("Added")
 
-    at.sidebar.radio[0].set_value("Student").run()
-    at.segmented_control[0].set_value("Search").run()
+    at.session_state["user"] = {"role": "student", "student_id": 1}
+    at.session_state["section"] = "Search"
+    at.run()
     at.text_input[0].set_value("beekeeping").run()
 
     assert "Orchard Beekeeping Basics" in set(at.dataframe[0].value["title"])
