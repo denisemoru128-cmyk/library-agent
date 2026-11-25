@@ -4,43 +4,7 @@ Streamlit's AppTest clicks buttons and types into boxes like a user would, so th
 the screens are wired to the rules (circulation), the agent and the chatbot, not just that
 those modules work on their own.
 """
-import shutil
-from pathlib import Path
-
-import pytest
-from streamlit.testing.v1 import AppTest
-
-from library_agent import circulation, config, db, report
-
-APP_FILE = str(Path(__file__).resolve().parent.parent / "app.py")
-
-
-@pytest.fixture()
-def app(db_path, tmp_path_factory, monkeypatch):
-    """Returns open_app(): starts the app on a fresh copy of the test database.
-
-    The copy always has the same path, so the slow demand model is trained once for the whole
-    test run (Streamlit caches it by path) instead of once per test.
-    """
-    folder = tmp_path_factory.getbasetemp() / "app_data"
-    folder.mkdir(exist_ok=True)
-    copy = folder / "app.db"
-    shutil.copy(db_path, copy)
-    monkeypatch.setattr(config, "DB_PATH", copy)
-
-    def open_app(role="Student", student_id=1, section=None):
-        """The app, already signed in (the sign-in screen has its own tests in test_signin.py)."""
-        at = AppTest.from_file(APP_FILE, default_timeout=120)
-        at.session_state["user"] = (
-            {"role": "librarian"} if role == "Librarian" else {"role": "student", "student_id": int(student_id)})
-        if section:
-            at.session_state["section"] = section
-        at.run()
-        assert not at.exception, [e.value for e in at.exception]
-        at.db = copy
-        return at
-
-    return open_app
+from library_agent import db, report
 
 
 def _button(at, label_start):
@@ -51,70 +15,6 @@ def _count(at, table):
     conn = db.connect(at.db)
     try:
         return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-    finally:
-        conn.close()
-
-
-def _first_loan(at, late: bool):
-    """(student_id, loan_id) of a loan that is overdue, or one that is fine to renew."""
-    conn = db.connect(at.db)
-    try:
-        loans = circulation.open_loans(conn)
-    finally:
-        conn.close()
-    if late:
-        row = loans[loans["days_left"] < 0].iloc[0]
-    else:
-        bad = set(loans.loc[loans["days_left"] < 0, "student_id"])
-        row = loans[~loans["student_id"].isin(bad) & (loans["renewals"] == 0)].iloc[0]
-    return int(row["student_id"]), int(row["loan_id"])
-
-
-# ---- student screens ---------------------------------------------------------------
-def test_search_screen_finds_books_despite_typos(app):
-    at = app(section="Search")
-    at.text_input[0].set_value("machin lerning").run()
-
-    assert not at.exception
-    titles = " ".join(at.dataframe[0].value["title"])
-    assert "Machine Learning" in titles
-
-
-def test_chat_screen_remembers_the_book_between_messages(app):
-    at = app(section="Assistant")
-    at.chat_input[0].set_value("find books about statistics").run()
-    at.chat_input[0].set_value("is it available?").run()
-
-    replies = [c.markdown[0].value for c in at.chat_message if c.name == "assistant"]
-    assert replies[0].startswith("Found") and replies[1].startswith("Assuming you mean")
-
-
-def test_renewing_from_the_loans_screen_updates_the_database(app):
-    at = app(section="My loans")
-    student_id, loan_id = _first_loan(at, late=False)
-    at = app(student_id=student_id, section="My loans")
-    next(s for s in at.selectbox if s.label == "Choose a loan").set_value(loan_id)
-    _button(at, "Renew").click().run()
-
-    assert at.success[0].value.startswith("Renewed")
-    conn = db.connect(at.db)
-    try:
-        assert db.get_loan(conn, loan_id)["renewals"] == 1
-    finally:
-        conn.close()
-
-
-def test_returning_a_late_book_charges_the_fine(app):
-    at = app(section="My loans")
-    student_id, loan_id = _first_loan(at, late=True)
-    at = app(student_id=student_id, section="My loans")
-    next(s for s in at.selectbox if s.label == "Choose a loan").set_value(loan_id)
-    _button(at, "Return").click().run()
-
-    assert "Fine: KES" in at.success[0].value
-    conn = db.connect(at.db)
-    try:
-        assert db.get_loan(conn, loan_id)["returned_on"] is not None
     finally:
         conn.close()
 
@@ -167,11 +67,11 @@ def test_a_new_book_is_searchable_straight_away(app):
     assert at.success[0].value.startswith("Added")
 
     at.session_state["user"] = {"role": "student", "student_id": 1}
-    at.session_state["section"] = "Search"
     at.run()
-    at.text_input[0].set_value("beekeeping").run()
+    at.text_input(key="top_search").set_value("beekeeping").run()
 
-    assert "Orchard Beekeeping Basics" in set(at.dataframe[0].value["title"])
+    assert at.session_state["section"] == "Search"
+    assert "Orchard Beekeeping Basics" in " ".join(h.value for h in at.get("html"))
 
 
 def test_adding_a_duplicate_title_is_refused(app):

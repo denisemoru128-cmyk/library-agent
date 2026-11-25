@@ -5,10 +5,11 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from library_agent import db  # noqa: E402
+from library_agent import config, db  # noqa: E402
 from library_agent.simulation import seed_database  # noqa: E402
 
 AS_OF = date(2026, 11, 16)
@@ -69,3 +70,33 @@ def quick_results(db_path):
     """The real evaluation (quick mode, about 40 s), run once and shared by the tests that read its results."""
     import evaluate
     return evaluate.collect(quick=True, database=db_path)
+
+
+APP_FILE = str(Path(__file__).resolve().parent.parent / "app.py")
+
+
+@pytest.fixture()
+def app(db_path, tmp_path_factory, monkeypatch):
+    """Returns open_app(): starts the real Streamlit app, already signed in, on a fresh copy of the test database.
+
+    The copy always has the same path, so the slow demand model is trained once for the whole
+    test run (Streamlit caches it by path) instead of once per test. The sign-in screen has its own tests.
+    """
+    folder = tmp_path_factory.getbasetemp() / "app_data"
+    folder.mkdir(exist_ok=True)
+    copy = folder / "app.db"
+    shutil.copy(db_path, copy)
+    monkeypatch.setattr(config, "DB_PATH", copy)
+
+    def open_app(role="Student", student_id=1, section=None):
+        at = AppTest.from_file(APP_FILE, default_timeout=120)
+        at.session_state["user"] = (
+            {"role": "librarian"} if role == "Librarian" else {"role": "student", "student_id": int(student_id)})
+        if section:
+            at.session_state["section"] = section
+        at.run()
+        assert not at.exception, [e.value for e in at.exception]
+        at.db = copy
+        return at
+
+    return open_app
