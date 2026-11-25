@@ -1,11 +1,11 @@
 {
-  "generated_on": "2026-11-21 12:24",
-  "as_of": "2026-11-21",
+  "generated_on": "2026-11-25 10:26",
+  "as_of": "2026-11-25",
   "quick": false,
   "seed": 42,
   "books": 100,
   "students": 150,
-  "loans": 7051,
+  "loans": 7033,
   "search": {
     "queries": 35,
     "hits": 34,
@@ -28,51 +28,51 @@
       "test_days": 60,
       "methods": {
         "hybrid": {
-          "hit_rate": 0.6986301369863014,
-          "recall": 0.2931289410741466
+          "hit_rate": 0.678082191780822,
+          "recall": 0.2849423787779952
         },
         "content": {
-          "hit_rate": 0.7191780821917808,
-          "recall": 0.2964312894107414
+          "hit_rate": 0.6438356164383562,
+          "recall": 0.25828169167210263
         },
         "collaborative": {
-          "hit_rate": 0.6232876712328768,
-          "recall": 0.21591650358773634
+          "hit_rate": 0.684931506849315,
+          "recall": 0.2636143726897151
         },
         "popular": {
-          "hit_rate": 0.6095890410958904,
-          "recall": 0.21873505109806468
+          "hit_rate": 0.6575342465753424,
+          "recall": 0.2428218090889324
         },
         "random": {
-          "hit_rate": 0.4726027397260274,
-          "recall": 0.1506006740595781
+          "hit_rate": 0.4657534246575342,
+          "recall": 0.1512040661013263
         }
       }
     },
     "new students (3 loans)": {
-      "students_tested": 144,
+      "students_tested": 147,
       "k": 10,
       "test_days": 60,
       "methods": {
         "hybrid": {
-          "hit_rate": 0.6458333333333334,
-          "recall": 0.17271522844439505
+          "hit_rate": 0.6598639455782312,
+          "recall": 0.19702127049065818
         },
         "content": {
-          "hit_rate": 0.5972222222222222,
-          "recall": 0.17208399239649233
+          "hit_rate": 0.5986394557823129,
+          "recall": 0.16164157082524425
         },
         "collaborative": {
-          "hit_rate": 0.5138888888888888,
-          "recall": 0.1380459625251291
+          "hit_rate": 0.5102040816326531,
+          "recall": 0.11369360042829428
         },
         "popular": {
-          "hit_rate": 0.4375,
-          "recall": 0.1028493304534971
+          "hit_rate": 0.4421768707482993,
+          "recall": 0.10398261979894628
         },
         "random": {
-          "hit_rate": 0.4236111111111111,
-          "recall": 0.10409534524117858
+          "hit_rate": 0.42857142857142855,
+          "recall": 0.0996670562997093
         }
       }
     }
@@ -82,22 +82,22 @@
     "horizon": 4,
     "genre": {
       "model": {
-        "mae": 2.353386363636364,
-        "wape": 0.24221988304093572
+        "mae": 2.711159090909091,
+        "wape": 0.2862984
       },
       "4-week average": {
-        "mae": 2.922348484848485,
-        "wape": 0.3007797270955166
+        "mae": 2.977272727272727,
+        "wape": 0.3144
       }
     },
     "book": {
       "model": {
-        "mae": 1.4907266666666665,
-        "wape": 0.348707992202729
+        "mae": 1.5018066666666667,
+        "wape": 0.3604336
       },
       "last 4 weeks repeated": {
-        "mae": 2.06,
-        "wape": 0.4818713450292398
+        "mae": 1.85,
+        "wape": 0.444
       }
     }
   },
@@ -206,13 +206,197 @@
     }
   },
   "agent": {
-    "date": "2026-11-21",
+    "date": "2026-11-25",
     "lines": [
-      "32 overdue loans, 11 due soon",
+      "35 overdue loans, 18 due soon",
       "6 overdue by more than 14 days (final notice)",
-      "22 books where the forecast says we need more copies",
-      "7 overdue copies of books that are fully out and in demand (priority chase)"
+      "18 books where the forecast says we need more copies",
+      "9 overdue copies of books that are fully out and in demand (priority chase)"
     ]
   },
-  "chatbot_min_confidence": 0.45
+  "chatbot_min_confidence": 0.45,
+  "stability": {
+    "libraries": [
+      {
+        "seed": 42,
+        "as_of": "2026-11-25"
+      },
+      {
+        "seed": 43,
+        "as_of": "2026-11-14"
+      },
+      {
+        "seed": 44,
+        "as_of": "2026-11-03"
+      },
+      {
+        "seed": 45,
+        "as_of": "2026-10-23"
+      },
+      {
+        "seed": 46,
+        "as_of": "2026-10-12"
+      }
+    ],
+    "metrics": {
+      "rec_hybrid": {
+        "label": "Recommender hit rate @10: hybrid (established students)",
+        "digits": 0,
+        "values": [
+          0.678082191780822,
+          0.75,
+          0.6758620689655173,
+          0.6875,
+          0.6808510638297872
+        ],
+        "min": 0.6758620689655173,
+        "mean": 0.6944590649152252,
+        "max": 0.75
+      },
+      "rec_content": {
+        "label": "Recommender hit rate @10: content-based only",
+        "digits": 0,
+        "values": [
+          0.6438356164383562,
+          0.6736111111111112,
+          0.6275862068965518,
+          0.6111111111111112,
+          0.5957446808510638
+        ],
+        "min": 0.5957446808510638,
+        "mean": 0.6303777452816388,
+        "max": 0.6736111111111112
+      },
+      "rec_popular": {
+        "label": "Recommender hit rate @10: most popular",
+        "digits": 0,
+        "values": [
+          0.6575342465753424,
+          0.6527777777777778,
+          0.6620689655172414,
+          0.5972222222222222,
+          0.5815602836879432
+        ],
+        "min": 0.5815602836879432,
+        "mean": 0.6302326991561054,
+        "max": 0.6620689655172414
+      },
+      "rec_new_hybrid": {
+        "label": "Recommender hit rate @10: hybrid (new students)",
+        "digits": 0,
+        "values": [
+          0.6598639455782312,
+          0.5782312925170068,
+          0.6598639455782312,
+          0.5486111111111112,
+          0.541095890410959
+        ],
+        "min": 0.541095890410959,
+        "mean": 0.5975332370391079,
+        "max": 0.6598639455782312
+      },
+      "rec_new_popular": {
+        "label": "Recommender hit rate @10: most popular (new students)",
+        "digits": 0,
+        "values": [
+          0.4421768707482993,
+          0.3333333333333333,
+          0.3129251700680272,
+          0.2569444444444444,
+          0.2945205479452055
+        ],
+        "min": 0.2569444444444444,
+        "mean": 0.32798007330786194,
+        "max": 0.4421768707482993
+      },
+      "genre_model": {
+        "label": "Forecast error by genre (WAPE): model",
+        "digits": 1,
+        "values": [
+          0.2862984,
+          0.2398450932684509,
+          0.23482210568777734,
+          0.2638357363542739,
+          0.279699549323986
+        ],
+        "min": 0.23482210568777734,
+        "mean": 0.2609001769268976,
+        "max": 0.2862984
+      },
+      "genre_base": {
+        "label": "Forecast error by genre (WAPE): 4-week average",
+        "digits": 1,
+        "values": [
+          0.3144,
+          0.2897404703974047,
+          0.3208955223880597,
+          0.48635427394438724,
+          0.5355533299949925
+        ],
+        "min": 0.2897404703974047,
+        "mean": 0.3893887193449688,
+        "max": 0.5355533299949925
+      },
+      "book_model": {
+        "label": "Forecast error by book (WAPE): model",
+        "digits": 1,
+        "values": [
+          0.3604336,
+          0.33528710462287103,
+          0.3356587333602259,
+          0.41563697219361484,
+          0.40395493239859787
+        ],
+        "min": 0.33528710462287103,
+        "mean": 0.37019426851506193,
+        "max": 0.41563697219361484
+      },
+      "book_base": {
+        "label": "Forecast error by book (WAPE): last 4 weeks repeated",
+        "digits": 1,
+        "values": [
+          0.444,
+          0.43390105433901055,
+          0.47317466720451795,
+          0.6148300720906282,
+          0.6414621932899349
+        ],
+        "min": 0.43390105433901055,
+        "mean": 0.5214735973848184,
+        "max": 0.6414621932899349
+      }
+    },
+    "comparisons": [
+      {
+        "text": "Hybrid recommender beats \u201cmost popular\u201d (established students)",
+        "ahead": 5,
+        "ties": 0,
+        "of": 5
+      },
+      {
+        "text": "Hybrid recommender beats content-based only (established students)",
+        "ahead": 5,
+        "ties": 0,
+        "of": 5
+      },
+      {
+        "text": "Hybrid recommender beats \u201cmost popular\u201d (new students)",
+        "ahead": 5,
+        "ties": 0,
+        "of": 5
+      },
+      {
+        "text": "Forecast beats the 4-week average (by genre)",
+        "ahead": 5,
+        "ties": 0,
+        "of": 5
+      },
+      {
+        "text": "Forecast beats repeating the last 4 weeks (by book)",
+        "ahead": 5,
+        "ties": 0,
+        "of": 5
+      }
+    ]
+  }
 }

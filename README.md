@@ -16,8 +16,8 @@ others are waiting for, and proposes which titles to buy.
 
 ## Set up on Windows
 
-From this directory, create and activate a virtual environment, then install
-the project dependencies (Streamlit 1.40 or newer is needed):
+From this directory, create and activate a virtual environment, then install the project dependencies
+(Streamlit 1.50 or newer is needed):
 
 ```powershell
 py -3.14 -m venv .venv
@@ -33,32 +33,37 @@ python -m pytest
 streamlit run app.py
 ```
 
-`python seed.py` makes the library's date today's real date (the weekday on screen is worked out from it).
-The saved numbers in `results/` were made with `python seed.py --as-of 2026-11-21`; use that command if you want
+`python seed.py` makes the library's date today's real date, and every weekday on screen is worked out from it.
+The saved numbers in `results/` were made with `python seed.py --as-of 2026-11-25`; use that command if you want
 to reproduce them exactly, because a different date gives a slightly different simulated history.
 
-`library-agent/` is the project directory; `library_agent/` is the single
-importable Python package (underscores are required in package names). The
-project has one test suite in `tests/`; seeded runtime data is stored in
-`data/`. If you run `python seed.py` again while the app is open, press
-**Retrain models** in the sidebar (or restart the app).
+The library date is stored in the database, so it falls behind the real date as days pass. The librarian can
+bring it up to date with **Set date to today** (in the agent panel) or run `python seed.py` again.
+If you run `python seed.py` while the app is open, press **Retrain models** in the sidebar (or restart the app).
 
 ## Using the app
 
-Choose **Student** or **Librarian** in the sidebar. The library date is simulated: it starts on the day you ran
-`seed.py` and the librarian can move it forward. All people, books and loans are generated.
+The app opens on a sign-in screen. It is a demo sign-in (a registration number such as `REG-0035` is enough, no
+password). Three demo buttons are ready: a student in good standing, a student with an overdue book, and the
+librarian. **Switch user** is in the menu at the top right, so you can change person without restarting.
 
-- **Student:** Search (try `machin lerning`), For you, My loans (renew, return, borrow), Notifications,
-  Ask the assistant (try "find books about statistics", then "is it available?").
-- **Librarian:** Dashboard, Circulation desk, Agent, Demand & buying, Catalogue, Model quality.
+- **Student:** Home, Search (type in the box at the top, try `machin lerning`), My loans (Renew and Return; a
+  button that is switched off says why underneath), For you. The assistant is docked on the right of every
+  screen: try "What is due soon?", or "find books about statistics" and then "is it available?". Each message shows
+  its time and two ticks once the bot understood it, and a small line says what it understood and how sure it was.
+- **Librarian:** Dashboard (headline numbers, loans per week with the forecast, the books to buy first, and the
+  agent's plan on the right), Circulation desk (issue, return, who is overdue), Agent, Demand & buying,
+  Catalogue, Model quality.
 
-**Agent demo:** Librarian, Agent. Press *Preview* (changes nothing), then *Run agent now*, then run it again
-(nothing is sent twice). Press *Advance date by 1 day* and run it again to watch it react.
+**Agent demo:** sign in as the librarian. On the Dashboard the panel on the right shows what the agent has
+decided. Press *Preview* (changes nothing), then *Run agent* (sends the notices), then *Run agent* again
+("Already run today", nothing is sent twice). Press *Advance one day* and run it again to watch it react.
 
 ## Measuring the AI parts
 
 ```powershell
-python evaluate.py          # about 90 seconds; add --quick for about 40
+python evaluate.py                  # one simulated library, about 90 seconds (add --quick for about 40)
+python evaluate.py --libraries 5    # five libraries, about 5 minutes: adds the lowest / average / highest table
 python -m pytest -v | Out-File -Encoding utf8 results\test_results.txt
 ```
 
@@ -68,7 +73,28 @@ other tools. `pytest.ini` already stops pytest from treating files in `results/`
 `evaluate.py` writes `results/evaluation.md` (tables for the report) and `results/evaluation.json` (shown in
 the app under Librarian, Model quality). It measures search hit rate, the recommender against popularity and
 random baselines on a temporal split, the forecast against naive baselines on a backtest, and the chatbot on
-sentences it never trained on. The data and the models use a fixed seed, so the numbers repeat.
+sentences it never trained on. With `--libraries 5` it repeats the recommender and forecast measurements on four
+more simulated libraries (each with its own random seed and a different end date) so the report can say how much
+the numbers move from one library to the next. The data and the models use fixed seeds, so the numbers repeat.
+
+## How the project is organised
+
+```
+app.py            the Streamlit app: loads the models, handles sign-in, picks the screen
+seed.py           builds the simulated database
+evaluate.py       measures the AI parts and writes results/
+library_agent/    the logic (no Streamlit): rules, search, recommender, forecast, chatbot, agent, evaluation
+views/            the screens: sign-in, student, librarian, the chat panel, the agent panel, theme
+tests/            the test suite (it runs the real app with Streamlit's AppTest)
+data/             the catalogue (books.csv) and the generated database
+results/          evaluation.md, evaluation.json, test_results.txt
+screenshots/      the screens, for the report
+assets/           the Karatina University logo and mark
+```
+
+`library-agent/` is the project directory; `library_agent/` is the single importable Python package
+(underscores are required in package names). The screens only draw what the tested modules decide: for example,
+the reason under a switched-off Borrow button comes from the same function that refuses the borrow.
 
 ## Agent and environment
 
@@ -84,8 +110,9 @@ a fine of KES 20 per overdue day. A student with an overdue book can not borrow 
 ## Limits
 
 - The data is simulated, with reading tastes, term and exam seasons built in. The evaluation shows the models
-  can find such patterns, not how they would score on real students.
+  can find such patterns, not how they would score on real students. The scores differ from one simulated
+  library to the next; `results/evaluation.md` gives the range.
 - The chatbot cannot reliably recognise requests unrelated to the library; it declines only when unsure.
 - A book added after the forecaster was trained is searchable at once but joins the demand forecast only after
-  **Retrain models**.
-- Student and librarian views are a demo interface and do not provide account authentication.
+  **Retrain models**. The same is true after the library date is moved.
+- The sign-in is a demo: anyone can pick any account, so it provides no real authentication.

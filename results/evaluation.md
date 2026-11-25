@@ -1,6 +1,6 @@
 # Evaluation results
 
-Generated 2026-11-21 12:24 on simulated data (100 books, 150 students, 7,051 loans, library date 2026-11-21, seed 42).
+Generated 2026-11-25 10:26 on simulated data (100 books, 150 students, 7,033 loans, library date 2026-11-25, seed 42).
 
 ## 1. Search
 
@@ -16,21 +16,21 @@ Temporal split: the model sees loans only up to 60 days ago, then we check wheth
 
 | Method | Hit rate @10 | Recall @10 |
 |---|---|---|
-| Hybrid (our model) | 70% | 29% |
-| Content-based only | 72% | 30% |
-| Collaborative only | 62% | 22% |
-| Most popular (baseline) | 61% | 22% |
+| Hybrid (our model) | 68% | 28% |
+| Content-based only | 64% | 26% |
+| Collaborative only | 68% | 26% |
+| Most popular (baseline) | 66% | 24% |
 | Random (baseline) | 47% | 15% |
 
-**new students (3 loans)** (144 students tested)
+**new students (3 loans)** (147 students tested)
 
 | Method | Hit rate @10 | Recall @10 |
 |---|---|---|
-| Hybrid (our model) | 65% | 17% |
-| Content-based only | 60% | 17% |
-| Collaborative only | 51% | 14% |
+| Hybrid (our model) | 66% | 20% |
+| Content-based only | 60% | 16% |
+| Collaborative only | 51% | 11% |
 | Most popular (baseline) | 44% | 10% |
-| Random (baseline) | 42% | 10% |
+| Random (baseline) | 43% | 10% |
 
 ## 3. Demand forecast
 
@@ -38,10 +38,10 @@ Backtest: 6 past dates, each forecasting the next 4 weeks using only earlier dat
 
 | Level | Method | Average error (loans) | WAPE |
 |---|---|---|---|
-| genre | model | 2.35 | 24.2% |
-| genre | 4-week average | 2.92 | 30.1% |
-| book | model | 1.49 | 34.9% |
-| book | last 4 weeks repeated | 2.06 | 48.2% |
+| genre | model | 2.71 | 28.6% |
+| genre | 4-week average | 2.98 | 31.4% |
+| book | model | 1.50 | 36.0% |
+| book | last 4 weeks repeated | 1.85 | 44.4% |
 
 Per-book forecasts are much noisier than per-genre ones, because one book has few loans per week.
 
@@ -64,12 +64,38 @@ Sentences the bot got wrong on the held-out set (expected intent, what it said, 
 
 “can i renew a loan” counts as wrong because the classifier alone says *renew*. The chat handler turns questions like this into the rules answer, so a student still gets the right reply and nothing is renewed.
 
-## 5. Agent decisions on 2026-11-21 (dry run, nothing changed)
+## 5. Agent decisions on 2026-11-25 (dry run, nothing changed)
 
-- 32 overdue loans, 11 due soon
+- 35 overdue loans, 18 due soon
 - 6 overdue by more than 14 days (final notice)
-- 22 books where the forecast says we need more copies
-- 7 overdue copies of books that are fully out and in demand (priority chase)
+- 18 books where the forecast says we need more copies
+- 9 overdue copies of books that are fully out and in demand (priority chase)
+
+## 6. How stable are these numbers? (5 simulated libraries)
+
+The evaluation above is one simulated library. To see how much the numbers depend on that one library, the same evaluation was run on 5 libraries. Each has its own random seed (different students, tastes and loans) and its history ends on a different day (2026-11-25, 2026-11-14, 2026-11-03, 2026-10-23, 2026-10-12). The first library is the demo library.
+
+| Measure | Lowest | Average | Highest |
+|---|---|---|---|
+| Recommender hit rate @10: hybrid (established students) | 68% | 69% | 75% |
+| Recommender hit rate @10: content-based only | 60% | 63% | 67% |
+| Recommender hit rate @10: most popular | 58% | 63% | 66% |
+| Recommender hit rate @10: hybrid (new students) | 54% | 60% | 66% |
+| Recommender hit rate @10: most popular (new students) | 26% | 33% | 44% |
+| Forecast error by genre (WAPE): model | 23.5% | 26.1% | 28.6% |
+| Forecast error by genre (WAPE): 4-week average | 29.0% | 38.9% | 53.6% |
+| Forecast error by book (WAPE): model | 33.5% | 37.0% | 41.6% |
+| Forecast error by book (WAPE): last 4 weeks repeated | 43.4% | 52.1% | 64.1% |
+
+Search and the chatbot are not in this table: they are tested on the catalogue and on fixed sentence sets, not on loans, so every library would give the same score.
+
+How often the model beat what it is compared with:
+
+- Hybrid recommender beats “most popular” (established students): **5 of 5 libraries**.
+- Hybrid recommender beats content-based only (established students): **5 of 5 libraries**.
+- Hybrid recommender beats “most popular” (new students): **5 of 5 libraries**.
+- Forecast beats the 4-week average (by genre): **5 of 5 libraries**.
+- Forecast beats repeating the last 4 weeks (by book): **5 of 5 libraries**.
 
 ## Limits of these results
 
