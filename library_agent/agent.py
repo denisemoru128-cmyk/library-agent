@@ -27,7 +27,7 @@ from datetime import date
 
 import pandas as pd
 
-from . import circulation, db
+from . import circulation, dates, db
 from .config import ESCALATION_DAYS
 from .forecast import DemandForecaster
 
@@ -61,7 +61,7 @@ class CycleReport:
 
     def summary(self) -> str:
         head = "Agent cycle" if self.executed else "Agent plan (dry run, nothing changed)"
-        return f"{head} for {self.on}:\n" + "\n".join(f"- {line}" for line in self.lines)
+        return f"{head} for {dates.full(self.on)}:\n" + "\n".join(f"- {line}" for line in self.lines)
 
 
 class LibraryAgent:

@@ -56,7 +56,9 @@ def main() -> None:
     st.set_page_config(page_title="Library Agent", page_icon=str(MARK), layout="wide")
     database = config.DB_PATH          # read at run time so tests can point the app at a copy
     user = st.session_state.get("user")
-    theme.apply(hide_sidebar=user is None, chat_panel=bool(user and user["role"] == "student"))
+    has_panel = bool(user) and (user["role"] == "student"
+                                or st.session_state.get("section") in (None, librarian.DASHBOARD))
+    theme.apply(hide_sidebar=user is None, side_panel=has_panel)
     if not database.exists():
         st.error("The library database is missing. Run `python seed.py` from the project directory first.")
         return
