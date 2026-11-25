@@ -268,3 +268,104 @@ def record_return(conn, loan_id: int, returned_on: date | None = None) -> None:
             "UPDATE loans SET returned_on = ? WHERE loan_id = ? AND returned_on IS NULL",
             (returned_on.isoformat(), loan_id),
         )
+
+
+# ---------------------------------------------------- helpers for circulation.py
+# circulation.py holds the library RULES; everything that touches SQL stays here.
+def open_loans_df(conn, student_id: int | None = None) -> pd.DataFrame:
+    """Every loan that is still out (optionally for one student), earliest due date first."""
+    return pd.read_sql_query(
+        """
+        SELECT l.loan_id, l.student_id, s.name AS student_name, s.reg_no,
+               l.book_id, b.title, b.author, b.genre, l.borrowed_on, l.due_on, l.renewals
+        FROM loans l
+        JOIN books b ON b.book_id = l.book_id
+        JOIN students s ON s.student_id = l.student_id
+        WHERE l.returned_on IS NULL AND (? IS NULL OR l.student_id = ?)
+        ORDER BY l.due_on, l.loan_id
+        """,
+        conn,
+        params=(student_id, student_id),
+        parse_dates=["borrowed_on", "due_on"],
+    )
+
+
+def get_loan(conn, loan_id: int):
+    """One loan joined with its book title, or None."""
+    return conn.execute(
+        "SELECT l.*, b.title FROM loans l JOIN books b ON b.book_id = l.book_id WHERE l.loan_id = ?",
+        (loan_id,),
+    ).fetchone()
+
+
+def copies_available(conn, book_id: int) -> int:
+    row = conn.execute(
+        "SELECT b.copies - COUNT(l.loan_id) AS free FROM books b "
+        "LEFT JOIN loans l ON l.book_id = b.book_id AND l.returned_on IS NULL "
+        "WHERE b.book_id = ? GROUP BY b.book_id",
+        (book_id,),
+    ).fetchone()
+    return row["free"] if row else 0
+
+
+def extend_loan(conn, loan_id: int, new_due_on: date) -> None:
+    """Push the due date back and count one renewal."""
+    conn.execute(
+        "UPDATE loans SET due_on = ?, renewals = renewals + 1 WHERE loan_id = ?",
+        (new_due_on.isoformat(), loan_id),
+    )
+
+
+def count_loans_since(conn, since: date) -> int:
+    return conn.execute("SELECT COUNT(*) FROM loans WHERE borrowed_on > ?", (since.isoformat(),)).fetchone()[0]
+
+
+def insert_notification(conn, student_id: int, loan_id: int, kind: str, message: str, created_on: date) -> bool:
+    """Store a message for a student. The UNIQUE(loan_id, kind, created_on) rule in the
+    schema makes this a no-op if the same message was already sent today; returns
+    True only when a NEW message was stored."""
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO notifications (student_id, loan_id, kind, message, created_on) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (int(student_id), int(loan_id), kind, message, created_on.isoformat()),
+    )
+    return cur.rowcount == 1
+
+
+def notifications_df(conn, student_id: int | None = None, limit: int = 200) -> pd.DataFrame:
+    return pd.read_sql_query(
+        """
+        SELECT n.notification_id, n.created_on, s.name AS student_name, n.kind, n.message
+        FROM notifications n JOIN students s ON s.student_id = n.student_id
+        WHERE (? IS NULL OR n.student_id = ?)
+        ORDER BY n.notification_id DESC LIMIT ?
+        """,
+        conn,
+        params=(student_id, student_id, limit),
+    )
+
+
+# ------------------------------------------------------------- the agent's diary
+def log_action(conn, run_on: date, action: str, detail: str) -> bool:
+    """Record something the agent did. Returns True if it was NEW; an identical
+    entry for the same day is skipped, so running the agent twice does not
+    fill the log with duplicates. (The caller commits.)"""
+    exists = conn.execute(
+        "SELECT 1 FROM agent_log WHERE run_on = ? AND action = ? AND detail = ?",
+        (run_on.isoformat(), action, detail),
+    ).fetchone()
+    if exists:
+        return False
+    conn.execute(
+        "INSERT INTO agent_log (run_on, action, detail) VALUES (?, ?, ?)",
+        (run_on.isoformat(), action, detail),
+    )
+    return True
+
+
+def agent_log_df(conn, limit: int = 500) -> pd.DataFrame:
+    return pd.read_sql_query(
+        "SELECT log_id, run_on, action, detail FROM agent_log ORDER BY log_id DESC LIMIT ?",
+        conn,
+        params=(limit,),
+    )

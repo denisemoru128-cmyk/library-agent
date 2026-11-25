@@ -107,14 +107,17 @@ class Recommender:
     # ------------------------------------------------------------ main API
     def recommend(self, student_id: int, top_n: int = RECOMMEND_TOP_N, method: str = "hybrid",
                   availability: pd.DataFrame | None = None, only_available: bool = False,
-                  exclude_borrowed: bool = True) -> pd.DataFrame:
-        """Return the top books for one student, best first, each with a reason."""
+                  exclude_borrowed: bool = True, genre: str | None = None) -> pd.DataFrame:
+        """Return the top books for one student, best first, each with a reason.
+        ``genre`` keeps only books of that genre ("recommend me law books")."""
         if method not in METHODS:
             raise ValueError(f"method must be one of {METHODS}")
         hist = self.history(student_id)
         n_books = len(self.books)
 
         candidates = np.ones(n_books, dtype=bool)
+        if genre is not None:
+            candidates &= (self.books["genre"] == genre).to_numpy()
         if exclude_borrowed:
             candidates[list(hist)] = False
         available = np.full(n_books, np.nan)

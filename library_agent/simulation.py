@@ -128,6 +128,7 @@ def simulate_loans(rng, books, students, start: date, end: date) -> list[dict]:
     copies_out = np.zeros(n_books, dtype=int)
     active = np.zeros(n_students, dtype=int)
     borrowed_before = np.zeros((n_students, n_books), dtype=bool)
+    holding = np.zeros((n_students, n_books), dtype=bool)  # a student never holds two copies of one book
     returns = defaultdict(list)  # date -> [(student_idx, book_idx)] coming back that day
     loans = []
 
@@ -137,13 +138,15 @@ def simulate_loans(rng, books, students, start: date, end: date) -> list[dict]:
         for s_idx, b_idx in returns.pop(d, []):
             copies_out[b_idx] -= 1
             active[s_idx] -= 1
+            holding[s_idx, b_idx] = False
         trend = 1.0 + 0.25 * offset / total_days  # library use grows ~25% over the period
 
         for s_idx in range(n_students):
             for _ in range(rng.poisson(0.17 * activity[s_idx])):
                 if active[s_idx] >= MAX_ACTIVE_LOANS:
                     break
-                w = weights[s_idx] * np.where(borrowed_before[s_idx], 0.1, 1.0) * (copies_out < copies)
+                w = (weights[s_idx] * np.where(borrowed_before[s_idx], 0.1, 1.0)
+                     * (copies_out < copies) * ~holding[s_idx])
                 if w.sum() == 0:
                     continue
                 b_idx = int(rng.choice(n_books, p=w / w.sum()))
@@ -165,6 +168,7 @@ def simulate_loans(rng, books, students, start: date, end: date) -> list[dict]:
                 copies_out[b_idx] += 1
                 active[s_idx] += 1
                 borrowed_before[s_idx, b_idx] = True
+                holding[s_idx, b_idx] = True
                 returned = back if back <= end else None
                 if returned:
                     returns[back].append((s_idx, b_idx))
