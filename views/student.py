@@ -10,7 +10,7 @@ from library_agent import circulation, db
 from library_agent.config import MAX_ACTIVE_LOANS
 
 from . import components as ui
-from .common import Models, finish, go
+from .common import Models, finish, go, heading, section_title
 
 SEARCH_EXAMPLES = ["machine learning", "history of kenya", "statistics", "contract law"]
 
@@ -30,19 +30,6 @@ def _standing(summary: dict) -> str:
     if summary["slots_free"] == 0:
         return f"{have} That is the limit of {MAX_ACTIVE_LOANS}. Return one to borrow another."
     return f"{have} You can borrow {summary['slots_free']} more."
-
-
-def _heading(title: str, sub: str = "") -> None:
-    st.markdown(f"# {title}")
-    if sub:
-        st.html(f'<p class="sub">{ui.esc(sub)}</p>')
-
-
-def _section_title(title: str, link: str | None = None, target: str | None = None, key: str = "") -> None:
-    left, right = st.columns([5, 2], vertical_alignment="center")
-    left.markdown(f"### {title}")
-    if link:
-        right.button(link, key=f"link_{key}", type="tertiary", on_click=go, args=(target,))
 
 
 def _renew_button(conn, loans: pd.DataFrame, loan_id: int, key: str) -> None:
@@ -111,10 +98,10 @@ def _book_rows(conn, student_id: int, loans: pd.DataFrame, frame: pd.DataFrame, 
 def _home(conn, student_id: int, m: Models) -> None:
     summary, loans = _position(conn, student_id)
     name = m.students.loc[m.students["student_id"] == student_id, "name"].iloc[0]
-    _heading(f"Welcome back, {name.split()[0]}", _standing(summary))
+    heading(f"Welcome back, {name.split()[0]}", _standing(summary))
     ui.stat_strip(ui.student_tiles(summary, loans))
 
-    _section_title("Your loans", "All loans", "My loans", "loans")
+    section_title("Your loans", "All loans", "My loans", "loans")
     if loans.empty:
         ui.empty_state("No books on loan", "Find something in Search, or look at For you.")
     else:
@@ -122,7 +109,7 @@ def _home(conn, student_id: int, m: Models) -> None:
             with column:
                 _loan_card(conn, loans, row, "home")
 
-    _section_title("For you", "All recommendations", "For you", "reco")
+    section_title("For you", "All recommendations", "For you", "reco")
     free = ui.availability_map(conn)
     picks = m.recommender.recommend(student_id, top_n=3, availability=db.availability_df(conn))
     out = ui.outlooks(conn, [int(b) for b in picks["book_id"] if free.get(int(b), 0) == 0])
@@ -138,7 +125,7 @@ def _set_query(text: str) -> None:
 
 
 def _search(conn, student_id: int, m: Models) -> None:
-    _heading("Search")
+    heading("Search")
     query = st.session_state.get("search_query", "").strip()
     only_free = st.checkbox("Only titles with a free copy", key="student_available_only")
     if not query:
@@ -171,7 +158,7 @@ def _due_block(row) -> str:
 
 def _my_loans(conn, student_id: int, m: Models) -> None:
     summary, loans = _position(conn, student_id)
-    _heading("My loans")
+    heading("My loans")
     ui.overdue_banner(loans)
     ui.stat_strip(ui.student_tiles(summary, loans))
     if loans.empty:
@@ -196,7 +183,7 @@ def _my_loans(conn, student_id: int, m: Models) -> None:
 
 # ------------------------------------------------------------------ For you
 def _for_you(conn, student_id: int, m: Models) -> None:
-    _heading("For you", "Books like the ones you borrowed, plus what similar readers borrowed. "
+    heading("For you", "Books like the ones you borrowed, plus what similar readers borrowed. "
                         "New students get picks from their interests and popular titles.")
     subject = st.columns([2, 5])[0].selectbox(
         "Subject", ["All subjects"] + sorted(m.books["genre"].unique()), key="reco_genre")

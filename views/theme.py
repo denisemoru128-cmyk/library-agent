@@ -53,13 +53,13 @@ def spine(title: str, genre: str, height: int, width: int) -> str:
             f'<span>{html.escape(title.split(":")[0])}</span></div>')
 
 
-def apply(hide_sidebar: bool = False, chat_panel: bool = False) -> None:
-    """Add the stylesheet to the page. ``hide_sidebar`` is used on the sign-in screen, ``chat_panel`` makes
-    room for the docked assistant on the student screens."""
+def apply(hide_sidebar: bool = False, side_panel: bool = False) -> None:
+    """Add the stylesheet to the page. ``hide_sidebar`` is used on the sign-in screen, ``side_panel`` makes
+    room for the docked panel on the right (the assistant, or the agent plan on the librarian Dashboard)."""
     extra = ('[data-testid="stSidebar"],[data-testid="stSidebarCollapsedControl"],'
              '[data-testid="collapsedControl"]{display:none!important}.stApp{background:#fff}' if hide_sidebar else "")
-    if chat_panel:
-        extra += CHAT_CSS
+    if side_panel:
+        extra += SIDE_PANEL_CSS
     st.markdown(f"<style>{CSS}{extra}</style>", unsafe_allow_html=True)
 
 
@@ -122,6 +122,7 @@ section[data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-prim
 [class*="st-key-demo"] button{width:100%;justify-content:flex-start;text-align:left;background:#fff;border:1px solid var(--rule)}
 [class*="st-key-demo"] button>div{width:100%;justify-content:flex-start}
 [class*="st-key-demo"] button:hover{border-color:var(--gold)}
+[data-testid="stBaseButton-primary"]:hover,[data-testid="stBaseButton-primary"]:focus:not(:active){background:#1C4D3A;border-color:#1C4D3A;color:#fff}
 .fine-print{font-size:12.5px;color:var(--muted);margin-top:.8rem}
 
 /* generated book cover */
@@ -186,16 +187,26 @@ section[data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-prim
 .empty b{display:block;font-size:15px}
 .empty span{display:block;font-size:14px;color:var(--muted);margin-top:2px}
 .stButton button:disabled{opacity:.5}
+/* small table (Books to buy first) */
+.tbl{width:100%;border-collapse:collapse;font-size:14.5px}
+.tbl th{text-align:left;font-weight:600;font-size:13px;color:var(--muted);padding:6px 10px 8px 0;border-bottom:1px solid var(--ink)}
+.tbl td{padding:11px 10px 11px 0;border-bottom:1px solid var(--rule)}
+.tbl .n{text-align:right;font-variant-numeric:tabular-nums}
+.tbl th:last-child,.tbl td.buy{padding-left:28px}
+.tbl .buy{color:#8A6410;font-weight:600}
+.tbl .late{color:var(--late);font-weight:600;font-variant-numeric:tabular-nums}
+.st-key-agent_clock{gap:.35rem!important}
+.st-key-agent_clock button{color:var(--forest);text-decoration:underline;font-size:14px;padding:0;min-height:0;border:0;background:transparent;justify-content:flex-start}
 @media (max-width:700px){.strip{grid-auto-flow:row;grid-template-columns:1fr 1fr}.cell{border-left:0;padding-left:0}}
 """
 
 
-# The docked assistant. Only added on the student screens, because it reserves space on the right.
-CHAT_CSS = """
+# The docked panel on the right. Only added where there is one, because it reserves space.
+SIDE_PANEL_CSS = """
 [data-testid="stMainBlockContainer"]{padding-left:2rem!important;padding-right:calc(340px + 1.6rem)!important}
-.st-key-chat_panel{position:fixed;top:0;right:0;bottom:0;width:340px;z-index:1000000;background:#fff;
+.st-key-chat_panel,.st-key-plan_panel{position:fixed;top:0;right:0;bottom:0;width:340px;z-index:1000000;background:#fff;
   border-left:1px solid var(--rule);display:flex;flex-direction:column;gap:0!important}
-.st-key-chat_head{flex:none;padding:12px 12px 8px 18px;border-bottom:1px solid var(--rule);gap:0!important}
+.st-key-chat_head,.st-key-plan_head{flex:none;padding:12px 12px 8px 18px;border-bottom:1px solid var(--rule);gap:0!important}
 .chat-h b{display:block;font-family:var(--serif);font-size:19px;line-height:1.2}
 .chat-h small{font-size:12.5px;color:var(--muted)}
 .st-key-chat_head [class*="st-key-chat_clear"]{display:flex;justify-content:flex-end;width:100%!important}
@@ -233,8 +244,30 @@ CHAT_CSS = """
 .mini .ok{color:var(--ok);font-weight:600}.mini .soon{color:#8A6410;font-weight:600}.mini .late{color:var(--late);font-weight:600}
 .more{font-size:12.5px;color:var(--muted);padding-top:6px}
 
+/* the agent plan (librarian Dashboard) */
+.st-key-plan_panel>[data-testid="stLayoutWrapper"]:has(.st-key-plan_body){flex:1 1 0;min-height:0}
+.st-key-plan_body{flex:1 1 0;min-height:0;overflow-y:auto;padding:14px 18px 6px;gap:.2rem!important}
+.st-key-plan_foot{flex:none;padding:10px 14px 14px;border-top:1px solid var(--rule);background:#F7F9F7;gap:.3rem!important}
+.st-key-plan_foot button{width:100%}
+.st-key-plan_foot [class*="st-key-plan_advance"] button,.st-key-plan_foot [class*="st-key-plan_today"] button{
+  color:var(--forest);text-decoration:underline;font-size:13.5px;padding:0;min-height:0;border:0;background:transparent}
+.st-key-plan_body [class*="st-key-plan_more"] button{color:var(--forest);text-decoration:underline;font-size:13px;padding:0;min-height:0;justify-content:flex-start}
+.plan-note{background:#FBF3E2;border-left:3px solid var(--gold);padding:9px 12px;font-size:13.5px;line-height:1.35}
+.plan-note.done{background:#E6F2EA;border-left-color:var(--ok)}
+.plan-note b{display:block}
+.pl-h{display:flex;align-items:center;gap:8px;margin-top:12px}
+.pl-h b{font-family:var(--serif);font-size:17px}
+.pl-h .count{background:var(--forest);color:#fff;border-radius:999px;font-size:12px;font-weight:600;padding:1px 9px}
+.pl-sub{font-size:12.5px;color:var(--muted);margin:2px 0 4px}
+.pl-item{padding:8px 0;border-top:1px solid var(--rule)}
+.pl-item b{display:block;font-size:14px}
+.pl-item span{display:block;font-size:13.5px}
+.pl-item small{font-size:12.5px;color:var(--muted)}
+.pl-item small.late{color:var(--late);font-weight:600}
+.pl-none{font-size:13.5px;color:var(--muted);padding:6px 0}
+
 @media (max-width:1000px){
   [data-testid="stMainBlockContainer"]{padding-right:1rem!important}
-  .st-key-chat_panel{position:static;flex:none!important;width:auto;height:560px;margin-top:1.5rem;border:1px solid var(--rule)}
+  .st-key-chat_panel,.st-key-plan_panel{position:static;flex:none!important;width:auto;height:560px;margin-top:1.5rem;border:1px solid var(--rule)}
 }
 """
