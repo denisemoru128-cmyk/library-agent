@@ -15,7 +15,7 @@ from library_agent.forecast import DemandForecaster
 from library_agent.recommender import Recommender
 from library_agent.chatbot import LibraryChatbot
 from library_agent.search import BookSearch
-from views import librarian, shell, signin, student, theme
+from views import chat, librarian, shell, signin, student, theme
 from views.common import Models, show_flash
 
 MARK = Path(__file__).resolve().parent / "assets" / "karatina_mark.png"
@@ -56,7 +56,7 @@ def main() -> None:
     st.set_page_config(page_title="Library Agent", page_icon=str(MARK), layout="wide")
     database = config.DB_PATH          # read at run time so tests can point the app at a copy
     user = st.session_state.get("user")
-    theme.apply(hide_sidebar=user is None)
+    theme.apply(hide_sidebar=user is None, chat_panel=bool(user and user["role"] == "student"))
     if not database.exists():
         st.error("The library database is missing. Run `python seed.py` from the project directory first.")
         return
@@ -79,6 +79,7 @@ def main() -> None:
         show_flash()
         if user["role"] == "student":
             student.SECTIONS[section](conn, user["student_id"], models)
+            chat.render(conn, user["student_id"], models)      # docked on the right (below the page on a phone)
         else:
             librarian.SECTIONS[section](conn, models)
     finally:

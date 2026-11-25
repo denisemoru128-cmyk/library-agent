@@ -53,10 +53,13 @@ def spine(title: str, genre: str, height: int, width: int) -> str:
             f'<span>{html.escape(title.split(":")[0])}</span></div>')
 
 
-def apply(hide_sidebar: bool = False) -> None:
-    """Add the stylesheet to the page. ``hide_sidebar`` is used on the sign-in screen."""
+def apply(hide_sidebar: bool = False, chat_panel: bool = False) -> None:
+    """Add the stylesheet to the page. ``hide_sidebar`` is used on the sign-in screen, ``chat_panel`` makes
+    room for the docked assistant on the student screens."""
     extra = ('[data-testid="stSidebar"],[data-testid="stSidebarCollapsedControl"],'
              '[data-testid="collapsedControl"]{display:none!important}.stApp{background:#fff}' if hide_sidebar else "")
+    if chat_panel:
+        extra += CHAT_CSS
     st.markdown(f"<style>{CSS}{extra}</style>", unsafe_allow_html=True)
 
 
@@ -130,4 +133,108 @@ section[data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-prim
 .cover .t{font-family:var(--serif);font-weight:600;font-size:var(--fs,11cqw);line-height:1.12;display:-webkit-box;
   -webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word}
 .cover .a{margin-top:auto;font-size:7.5cqw;opacity:.82;line-height:1.2}
+
+/* page headings */
+[data-testid="stMarkdownContainer"] h1{font-size:30px!important;line-height:1.15!important;padding:0 0 .1rem}
+[data-testid="stMarkdownContainer"] h3{font-size:19px!important;padding:.2rem 0 .3rem}
+.sub{margin:0 0 1rem;color:var(--muted);font-size:15.5px}
+
+/* stat strip */
+.strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);border-top:1px solid var(--rule);
+  border-bottom:1px solid var(--rule);margin:.2rem 0 .5rem}
+.cell{padding:11px 16px;border-left:1px solid var(--rule)}
+.cell:first-child{padding-left:0;border-left:0}
+.cell small{display:block;font-size:13px;color:var(--muted)}
+.cell b{display:block;font-family:var(--serif);font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums}
+.cell b i{font-family:"Source Sans","Source Sans 3",system-ui,sans-serif;font-style:normal;font-weight:400;font-size:15px;color:var(--muted)}
+.cell span{display:block;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell.late b{color:var(--late)}
+
+/* a book: cover + words */
+.bk{display:flex;gap:12px;align-items:flex-start}
+.bi{min-width:0}
+.bt{font-family:var(--serif);font-weight:600;font-size:15.5px;line-height:1.25}
+.ba{font-size:13.5px;color:var(--muted);margin:1px 0 5px}
+.bl{font-size:13.5px;margin-top:2px;color:var(--muted)}
+.bl.ink{color:var(--ink);font-size:13px}
+.bl.ok{color:var(--ok);font-weight:600}
+.bl.soon{color:#8A6410;font-weight:600}
+.bl.late{color:var(--late);font-weight:600}
+.hint{font-size:12.5px;color:var(--muted);margin-top:-.25rem}
+.due{padding-top:.35rem}
+.due b{display:block;font-size:14.5px}
+.due small{font-size:13px;color:var(--muted)}
+.due small.late{color:var(--late);font-weight:600}
+.due small.soon{color:#8A6410;font-weight:600}
+
+/* cards (Home): the button sits under the words, not under the cover */
+[class*="st-key-card_"] .hint{margin-left:88px}
+[class*="st-key-card_"] .stButton{margin-left:88px;width:calc(100% - 88px)!important}
+[class*="st-key-card_"] [data-testid="stVerticalBlock"]{gap:.45rem}
+[class*="st-key-link_"]{display:flex;justify-content:flex-end;width:100%!important}
+[class*="st-key-link_"] button,[class*="st-key-link_"] button>div{justify-content:flex-end;text-align:right}
+[class*="st-key-link_"] button{color:var(--forest);text-decoration:underline;font-size:13.5px;padding:0}
+
+/* rows (Search, My loans, For you) */
+[class*="st-key-row_"],[class*="st-key-lrow_"]{border-bottom:1px solid var(--rule);border-left:3px solid transparent;padding:.7rem .3rem .7rem .8rem}
+[class*="st-key-lrow_"]{background:var(--late-bg);border-left-color:var(--late)}
+[class*="st-key-row_search_"],[class*="st-key-row_reco_"]{border-left:0;padding-left:.3rem}
+.banner{display:flex;flex-direction:column;padding:12px 16px;border-left:4px solid var(--late);background:var(--late-bg);margin:.5rem 0 1rem}
+.banner b{font-size:15.5px;color:#8F0016}
+.banner span{font-size:14.5px}
+.empty{padding:1rem 0}
+.empty b{display:block;font-size:15px}
+.empty span{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.stButton button:disabled{opacity:.5}
+@media (max-width:700px){.strip{grid-auto-flow:row;grid-template-columns:1fr 1fr}.cell{border-left:0;padding-left:0}}
+"""
+
+
+# The docked assistant. Only added on the student screens, because it reserves space on the right.
+CHAT_CSS = """
+[data-testid="stMainBlockContainer"]{padding-left:2rem!important;padding-right:calc(340px + 1.6rem)!important}
+.st-key-chat_panel{position:fixed;top:0;right:0;bottom:0;width:340px;z-index:1000000;background:#fff;
+  border-left:1px solid var(--rule);display:flex;flex-direction:column;gap:0!important}
+.st-key-chat_head{flex:none;padding:12px 12px 8px 18px;border-bottom:1px solid var(--rule);gap:0!important}
+.chat-h b{display:block;font-family:var(--serif);font-size:19px;line-height:1.2}
+.chat-h small{font-size:12.5px;color:var(--muted)}
+.st-key-chat_head [class*="st-key-chat_clear"]{display:flex;justify-content:flex-end;width:100%!important}
+.st-key-chat_head [class*="st-key-chat_clear"] button{color:var(--muted);font-size:12.5px;padding:0;text-decoration:underline}
+/* column-reverse keeps the newest message in view: the log starts scrolled to the bottom */
+.st-key-chat_panel>[data-testid="stLayoutWrapper"]:has(.st-key-chat_log){flex:1 1 0;min-height:0}
+.st-key-chat_log>[data-testid="stLayoutWrapper"],.st-key-chat_msgs{flex:none!important}
+.st-key-chat_log{flex:1 1 0;min-height:0;overflow-y:auto;display:flex;flex-direction:column-reverse;justify-content:flex-start!important;padding:14px 14px 0}
+.st-key-chat_chips{flex:none;padding:8px 14px 0;gap:.35rem!important}
+.st-key-chat_chips [data-testid="stHorizontalBlock"]{gap:.4rem}
+.st-key-chat_chips button{border-radius:999px;min-height:0;padding:.15rem .7rem;font-size:13px;background:#fff;
+  border:1px solid var(--rule);color:var(--forest);width:100%}
+.st-key-chat_chips button:hover{border-color:var(--gold)}
+.st-key-chat_entry{flex:none;padding:8px 14px 14px}
+.st-key-chat_entry [data-testid="stChatInput"]{border-radius:8px;background:#fff}
+
+.msg{display:flex;flex-direction:column;max-width:90%;margin:0 0 12px}
+.msg.me{align-items:flex-end;margin-left:auto}
+.msg.bot{align-items:flex-start}
+.bub{padding:9px 13px;border-radius:14px;font-size:14.5px;line-height:1.4;overflow-wrap:anywhere}
+.bub p{margin:0}.bub p+p,.bub ul{margin-top:.35rem}.bub ul{padding-left:1.1rem;margin-bottom:0}
+.me .bub{background:var(--forest);color:#fff;border-bottom-right-radius:3px}
+.bot .bub{background:#EDF2EE;border-bottom-left-radius:3px}
+.meta{display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--muted);margin-top:3px}
+.tick{position:relative;display:inline-block;width:17px;height:10px}
+.tick::before,.tick::after{content:"";position:absolute;bottom:2px;width:4px;height:8px;box-sizing:border-box;
+  border:solid #6E7F75;border-width:0 1.8px 1.8px 0;transform:rotate(45deg)}
+.tick::before{left:2px}.tick::after{left:7px;display:none}
+.tick.ok::after{display:block}.tick.ok::before,.tick.ok::after{border-color:#0A8A45}
+.und{font-size:11.5px;color:var(--muted);margin-top:4px}
+.minis{align-self:stretch;margin-top:6px}
+.mini{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--rule)}
+.mini b{font-family:var(--serif);font-size:13.5px;display:block;line-height:1.2;font-weight:600}
+.mini span{font-size:12.5px;color:var(--muted);display:block}
+.mini .ok{color:var(--ok);font-weight:600}.mini .soon{color:#8A6410;font-weight:600}.mini .late{color:var(--late);font-weight:600}
+.more{font-size:12.5px;color:var(--muted);padding-top:6px}
+
+@media (max-width:1000px){
+  [data-testid="stMainBlockContainer"]{padding-right:1rem!important}
+  .st-key-chat_panel{position:static;flex:none!important;width:auto;height:560px;margin-top:1.5rem;border:1px solid var(--rule)}
+}
 """
