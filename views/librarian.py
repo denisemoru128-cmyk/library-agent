@@ -7,7 +7,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from library_agent import circulation, dates, db, report
+from library_agent import circulation, dates, db, report, stability
 from library_agent.agent import LibraryAgent
 from library_agent.config import ESCALATION_DAYS, FORECAST_HORIZON_WEEKS
 
@@ -236,13 +236,13 @@ def _demand(conn, m: Models) -> None:
                                   "forecast_loans", "copies_needed", "advice"]],
                  hide_index=True, width="stretch",
                  column_config={
-                     "title": st.column_config.TextColumn("title", width=260),
-                     "copies": st.column_config.NumberColumn("copies", width=70),
-                     "available": st.column_config.NumberColumn("free now", width=80),
-                     "recent_loans": st.column_config.NumberColumn("loans, last 8 wks", width=125),
-                     "forecast_loans": st.column_config.NumberColumn("forecast, next 4 wks", width=140),
-                     "copies_needed": st.column_config.NumberColumn("copies needed", width=105),
-                     "advice": st.column_config.TextColumn("advice", width=130),
+                     "title": st.column_config.TextColumn("Title", width=260),
+                     "copies": st.column_config.NumberColumn("Copies", width=70),
+                     "available": st.column_config.NumberColumn("Free now", width=80),
+                     "recent_loans": st.column_config.NumberColumn("Loans, last 8 weeks", width=140),
+                     "forecast_loans": st.column_config.NumberColumn("Forecast, next 4 weeks", width=155),
+                     "copies_needed": st.column_config.NumberColumn("Copies needed", width=115),
+                     "advice": st.column_config.TextColumn("Advice", width=130),
                  })
     st.markdown("### Forecast detail")
     by = st.radio("Forecast level", ["genre", "book"], horizontal=True)
@@ -277,7 +277,9 @@ def _catalogue(conn, m: Models) -> None:
                                   "press “Retrain models” in the sidebar to include it in the demand forecast.")
                 st.rerun()
     catalogue = books.merge(db.availability_df(conn), on=["book_id", "copies"])
-    st.dataframe(catalogue.drop(columns=["description"]), hide_index=True, width="stretch")
+    st.dataframe(catalogue.drop(columns=["description"]), hide_index=True, width="stretch",
+                 column_config={"book_id": "ID", "title": "Title", "author": "Author", "genre": "Genre",
+                                "copies": "Copies", "copies_out": "Out", "available": "Free"})
 
 
 # ------------------------------------------------------------------ Model quality
@@ -297,8 +299,17 @@ def _quality(conn, m: Models) -> None:
         {"label": "Forecast error (genre WAPE)", "value": f"{genre['model']['wape']:.1%}",
          "sub": f"{(genre['model']['wape'] - genre['4-week average']['wape']) * 100:+.1f} pts vs 4-week average"},
         {"label": "Chatbot accuracy", "value": f"{chat['strict_accuracy']:.0%}", "sub": "held-out questions"}])
-    st.caption("Measured by `evaluate.py` on simulated data. Run it again after re-seeding to refresh these numbers.")
-    st.markdown(report.render_markdown(results))
+    spread = results.get("stability")
+    if spread:
+        st.caption(f"Across {len(spread['libraries'])} simulated libraries: "
+                   f"recommender hit rate {stability.range_text(spread, 'rec_hybrid')}, "
+                   f"forecast error by genre {stability.range_text(spread, 'genre_model')}. "
+                   "The tiles above are the demo library. All data is simulated.")
+    else:
+        st.caption("The tiles above are one simulated library. Run `python evaluate.py --libraries 5` to see "
+                   "how much the numbers change between libraries.")
+    with st.container(key="quality_doc"):               # the full write-up, with smaller headings than the page title
+        st.markdown(report.render_markdown(results))
 
 
 SECTIONS = {

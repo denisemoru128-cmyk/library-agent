@@ -2,6 +2,8 @@
 
     python evaluate.py            # full run (about 90 seconds)
     python evaluate.py --quick    # 2 forecast backtests instead of 6 (about 40 seconds)
+    python evaluate.py --libraries 5   # also run it on 4 more simulated libraries and report the spread
+                                       # (about 8 minutes: each library takes about 90 seconds)
 
 It writes two files into results/:
     evaluation.md    the tables, ready to paste into the report
@@ -13,7 +15,7 @@ import argparse
 import time
 from datetime import datetime
 
-from library_agent import db, report
+from library_agent import db, report, stability
 from library_agent.agent import LibraryAgent
 from library_agent.chatbot import LibraryChatbot
 from library_agent.config import CHATBOT_MIN_CONFIDENCE, DB_PATH, RANDOM_SEED
@@ -77,12 +79,22 @@ def collect(quick: bool = False, database=DB_PATH) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate the library agent's AI components")
     parser.add_argument("--quick", action="store_true", help="2 forecast backtests instead of 6")
+    parser.add_argument("--libraries", type=int, default=1,
+                        help="number of simulated libraries to evaluate (default 1); with more, the report also "
+                             "shows the lowest, average and highest score of each measure")
     args = parser.parse_args()
     if not DB_PATH.exists():
         raise SystemExit("The database is missing. Run `python seed.py` first.")
 
     print("Evaluating the library agent")
     results = collect(quick=args.quick)
+    if args.libraries > 1:
+        conn = db.connect(DB_PATH)
+        try:
+            as_of = db.today(conn)
+        finally:
+            conn.close()
+        results["stability"] = stability.evaluate_many(results, args.libraries, collect, as_of, args.quick)
     markdown_path, json_path = report.save_results(results)
     print("\n" + report.render_markdown(results))
     print(f"Saved to {markdown_path} and {json_path}")

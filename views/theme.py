@@ -197,6 +197,9 @@ section[data-testid="stSidebar"] .stButton button[data-testid="stBaseButton-prim
 .tbl .late{color:var(--late);font-weight:600;font-variant-numeric:tabular-nums}
 .st-key-agent_clock{gap:.35rem!important}
 .st-key-agent_clock button{color:var(--forest);text-decoration:underline;font-size:14px;padding:0;min-height:0;border:0;background:transparent;justify-content:flex-start}
+.st-key-quality_doc h1{display:none}
+.st-key-quality_doc h2{font-size:1.45rem;margin-top:1.6rem}
+.st-key-quality_doc table{font-size:14.5px}
 @media (max-width:700px){.strip{grid-auto-flow:row;grid-template-columns:1fr 1fr}.cell{border-left:0;padding-left:0}}
 """
 

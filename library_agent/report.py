@@ -7,6 +7,8 @@ the app's "Model quality" section.
 import json
 from pathlib import Path
 
+from .stability import show
+
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
 METHOD_NAMES = {
@@ -34,6 +36,25 @@ def _table(header: list[str], rows: list[list]) -> str:
     lines = ["| " + " | ".join(header) + " |", "|" + "|".join("---" for _ in header) + "|"]
     lines += ["| " + " | ".join(str(cell) for cell in row) + " |" for row in rows]
     return "\n".join(lines)
+
+
+def _stability_section(stability: dict) -> list[str]:
+    n = len(stability["libraries"])
+    ends = ", ".join(lib["as_of"] for lib in stability["libraries"])
+    out = ["", f"## 6. How stable are these numbers? ({n} simulated libraries)", "",
+           f"The evaluation above is one simulated library. To see how much the numbers depend on that one library, "
+           f"the same evaluation was run on {n} libraries. Each has its own random seed (different students, tastes "
+           f"and loans) and its history ends on a different day ({ends}). The first library is the demo library.", "",
+           _table(["Measure", "Lowest", "Average", "Highest"],
+                  [[m["label"], show(m["min"], m["digits"]), show(m["mean"], m["digits"]), show(m["max"], m["digits"])]
+                   for m in stability["metrics"].values()]),
+           "", "Search and the chatbot are not in this table: they are tested on the catalogue and on fixed "
+               "sentence sets, not on loans, so every library would give the same score.",
+           "", "How often the model beat what it is compared with:", ""]
+    for c in stability["comparisons"]:
+        tied = f", {c['ties']} tied" if c["ties"] else ""
+        out.append(f"- {c['text']}: **{c['ahead']} of {c['of']} libraries**{tied}.")
+    return out
 
 
 def render_markdown(r: dict) -> str:
@@ -96,6 +117,9 @@ def render_markdown(r: dict) -> str:
     a = r["agent"]
     out += ["", f"## 5. Agent decisions on {a['date']} (dry run, nothing changed)", ""]
     out += [f"- {line}" for line in a["lines"]]
+
+    if r.get("stability"):
+        out += _stability_section(r["stability"])
 
     out += ["", "## Limits of these results", "",
             "- All data is **simulated**. The simulator builds in reading tastes, seasons and exam rushes, so these "
