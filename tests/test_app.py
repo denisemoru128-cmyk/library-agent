@@ -4,7 +4,10 @@ Streamlit's AppTest clicks buttons and types into boxes like a user would, so th
 the screens are wired to the rules (circulation), the agent and the chatbot, not just that
 those modules work on their own.
 """
-from library_agent import db, report
+import copy
+from datetime import date
+
+from library_agent import db, report, stability
 
 
 def _button(at, label_start):
@@ -54,3 +57,24 @@ def test_model_quality_section_says_how_to_create_the_results(app, tmp_path, mon
     at = app(role="Librarian", section="Model quality")
 
     assert "python evaluate.py" in " ".join(h.value for h in at.get("html"))
+
+
+def test_model_quality_section_shows_the_range_across_libraries(app, quick_results, tmp_path, monkeypatch):
+    several = copy.deepcopy(quick_results)
+    several["stability"] = stability.summarise([quick_results, quick_results],
+                                               stability.library_settings(42, date(2026, 11, 25), 2))
+    monkeypatch.setattr(report, "RESULTS_DIR", tmp_path)
+    report.save_results(several)
+    at = app(role="Librarian", section="Model quality")
+
+    assert any(c.value.startswith("Across 2 simulated libraries") for c in at.caption)
+    assert any("How stable are these numbers?" in m.value for m in at.markdown)
+
+
+def test_model_quality_section_suggests_the_multi_library_run_when_there_is_only_one(app, quick_results, tmp_path,
+                                                                                    monkeypatch):
+    monkeypatch.setattr(report, "RESULTS_DIR", tmp_path)
+    report.save_results(quick_results)
+    at = app(role="Librarian", section="Model quality")
+
+    assert any("--libraries 5" in c.value for c in at.caption)
