@@ -100,13 +100,14 @@ def student_summary(conn, student_id: int, on: date | None = None) -> dict:
     }
 
 
-def return_outlook(conn, book_id: int, on: date | None = None) -> dict:
+def return_outlook(conn, book_id: int, on: date | None = None, loans: pd.DataFrame | None = None) -> dict:
     """When will a book that is fully out come back?
 
     ``next_due`` is the earliest due date among copies that are still on time (None if there is
     none). ``late_copies`` are copies already past their due date: they have no reliable return date.
+    Pass ``loans`` (from open_loans) when asking about many books, so they are loaded only once.
     """
-    loans = open_loans(conn, on=on)
+    loans = open_loans(conn, on=on) if loans is None else loans
     loans = loans[loans["book_id"] == book_id]
     on_time = loans[loans["days_left"] >= 0].sort_values("days_left")
     return {
@@ -114,6 +115,61 @@ def return_outlook(conn, book_id: int, on: date | None = None) -> dict:
         "next_due": None if on_time.empty else on_time.iloc[0]["due_on"].date(),
         "late_copies": int((loans["days_left"] < 0).sum()),
     }
+
+
+# ------------------------------------------------- why an action is not allowed
+# One function decides, two callers use the answer: the action itself (a full sentence in its Outcome)
+# and the screens (a short hint under a disabled button). They can not disagree, because both ask here.
+BORROW_HINTS = {
+    "no_copy": "No free copy right now",
+    "limit": f"You have {MAX_ACTIVE_LOANS} books out, the limit",
+    "overdue": "Return your overdue book first",
+    "has_it": "Already on your loans",
+}
+RENEW_HINTS = {
+    "overdue": "Overdue: return it instead",
+    "other_overdue": "Return the overdue book first",
+    "max_renewals": "Already renewed once" if MAX_RENEWALS == 1 else f"Renewed {MAX_RENEWALS} times already",
+}
+
+
+def _borrow_problem(loans: pd.DataFrame, book_id: int, copies_free: int) -> str | None:
+    """The first borrowing rule that fails (a key of BORROW_HINTS), or None. ``loans`` are the student's."""
+    if copies_free < 1:
+        return "no_copy"
+    if len(loans) >= MAX_ACTIVE_LOANS:
+        return "limit"
+    if (loans["days_left"] < 0).any():
+        return "overdue"
+    if (loans["book_id"] == book_id).any():
+        return "has_it"
+    return None
+
+
+def _renew_problem(overdue: bool, other_overdue: bool, renewals: int) -> str | None:
+    """The first renewing rule that fails (a key of RENEW_HINTS), or None."""
+    if overdue:
+        return "overdue"
+    if other_overdue:
+        return "other_overdue"
+    if renewals >= MAX_RENEWALS:
+        return "max_renewals"
+    return None
+
+
+def borrow_blocker(loans: pd.DataFrame, book_id: int, copies_free: int) -> str | None:
+    """Short reason this student can not borrow this book now (for a button hint), or None.
+    ``loans`` is the student's open_loans frame."""
+    problem = _borrow_problem(loans, book_id, copies_free)
+    return None if problem is None else BORROW_HINTS[problem]
+
+
+def renew_blocker(loans: pd.DataFrame, loan_id: int) -> str | None:
+    """Short reason this loan can not be renewed now, or None. ``loans`` is the student's open_loans frame."""
+    row = loans[loans["loan_id"] == loan_id].iloc[0]
+    other_late = loans[(loans["loan_id"] != loan_id) & (loans["days_left"] < 0)]
+    problem = _renew_problem(row["days_left"] < 0, not other_late.empty, int(row["renewals"]))
+    return None if problem is None else RENEW_HINTS[problem]
 
 
 # --------------------------------------------------------------- actions
@@ -126,15 +182,15 @@ def issue_book(conn, student_id: int, book_id: int, on: date | None = None) -> O
             return Outcome(False, "Student not found.")
         if book is None:
             return Outcome(False, "Book not found.")
-        if db.copies_available(conn, book_id) < 1:
-            return Outcome(False, f"No copy of “{book['title']}” is available right now.")
         loans = open_loans(conn, student_id, on)
-        if len(loans) >= MAX_ACTIVE_LOANS:
-            return Outcome(False, f"{student['name']} already has {MAX_ACTIVE_LOANS} books out (the limit).")
-        if (loans["days_left"] < 0).any():
-            return Outcome(False, f"{student['name']} has overdue books and must return them first.")
-        if (loans["book_id"] == book_id).any():
-            return Outcome(False, f"{student['name']} already has “{book['title']}” on loan.")
+        problem = _borrow_problem(loans, book_id, db.copies_available(conn, book_id))
+        if problem:
+            return Outcome(False, {
+                "no_copy": f"No copy of “{book['title']}” is available right now.",
+                "limit": f"{student['name']} already has {MAX_ACTIVE_LOANS} books out (the limit).",
+                "overdue": f"{student['name']} has overdue books and must return them first.",
+                "has_it": f"{student['name']} already has “{book['title']}” on loan.",
+            }[problem])
         try:
             loan_id = db.borrow_book(conn, student_id, book_id, borrowed_on=on)
         except ValueError as error:  # a rule inside db.borrow_book said no
@@ -169,16 +225,18 @@ def renew_loan(conn, loan_id: int, on: date | None = None) -> Outcome:
         loan = db.get_loan(conn, loan_id)
         if loan is None or loan["returned_on"] is not None:
             return Outcome(False, "That loan is not active.")
-        if date.fromisoformat(loan["due_on"]) < on:
-            return Outcome(False, "Overdue books can not be renewed. Please return it and pay the fine.")
         # The rule the app shows to students: any overdue book pauses borrowing AND renewing.
         others = open_loans(conn, loan["student_id"], on)
         late = others[others["days_left"] < 0].sort_values("days_left")
-        if not late.empty:
-            return Outcome(False, f"“{loan['title']}” can not be renewed while “{late.iloc[0]['title']}” "
-                                  "is overdue. Return that book first.")
-        if loan["renewals"] >= MAX_RENEWALS:
-            return Outcome(False, f"“{loan['title']}” has already been renewed {MAX_RENEWALS} time(s).")
+        problem = _renew_problem(date.fromisoformat(loan["due_on"]) < on, not late.empty, loan["renewals"])
+        if problem:
+            return Outcome(False, {
+                "overdue": "Overdue books can not be renewed. Please return it and pay the fine.",
+                "other_overdue": f"“{loan['title']}” can not be renewed while "
+                                 f"“{late.iloc[0]['title'] if not late.empty else ''}” is overdue. "
+                                 "Return that book first.",
+                "max_renewals": f"“{loan['title']}” has already been renewed {MAX_RENEWALS} time(s).",
+            }[problem])
         new_due = on + timedelta(days=LOAN_DAYS)
         db.extend_loan(conn, loan_id, new_due)
         return Outcome(True, f"Renewed “{loan['title']}”. New due date: {new_due.isoformat()}.",

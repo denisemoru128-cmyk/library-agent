@@ -42,6 +42,11 @@ BUY_CUES = frozenset({"copies", "buy", "purchase", "acquire", "order"})
 SIMILAR_CUES = frozenset({"similar", "like", "resemble", "resembling"})
 QUESTION_STARTS = frozenset({"can", "could", "may", "how", "is", "are", "do", "does", "will"})
 POINTING_WORDS = frozenset({"it", "this", "that", "one"})
+def _n(count: int, noun: str) -> str:
+    """'1 loan', '5 loans': so the answers never say "loan(s)"."""
+    return f"{count} {noun}" + ("" if count == 1 else "s")
+
+
 SUGGESTIONS = ("Try: “Is Clean Code available?”, “Find books about statistics”, "
                "“What is due this week?”, “Recommend a book”, "
                "“What is the fine for late books?” or “Renew Clean Code”.")
@@ -191,6 +196,7 @@ class LibraryChatbot:
         return {
             "intent": intent,
             "confidence": confidence,
+            "understood": confidence >= CHATBOT_MIN_CONFIDENCE,
             "message": message,
             "data": data,
             "entities": entities,
@@ -296,7 +302,7 @@ class LibraryChatbot:
         start = as_of + timedelta(days=7 if "next week" in turn.query.lower() else 0)
         end = start + timedelta(days=6)
         result = db.due_loans_df(turn.conn, start=start, end=end, student_id=turn.student_id)
-        return self._reply(turn, f"Found {len(result)} loan(s) due between {dates.short(start)} and {dates.short(end)}.",
+        return self._reply(turn, f"Found {_n(len(result), 'loan')} due between {dates.short(start)} and {dates.short(end)}.",
                            self._records(result))
 
     def _handle_overdue(self, turn: Turn) -> dict:
@@ -307,10 +313,10 @@ class LibraryChatbot:
         result["due_on"] = result["due_on"].dt.strftime("%Y-%m-%d")
         if turn.student_id is not None:
             owed = int(result["fine"].sum())
-            message = (f"You have {len(result)} overdue book(s). Fines so far: KES {owed}."
+            message = (f"You have {_n(len(result), 'overdue book')}. Fines so far: KES {owed}."
                        if len(result) else "You have no overdue books.")
         else:
-            message = f"Found {len(result)} overdue loan(s)."
+            message = f"Found {_n(len(result), 'overdue loan')}."
         return self._reply(turn, message, self._records(result.reset_index(drop=True)))
 
     def _handle_recommendations(self, turn: Turn) -> dict:
@@ -326,7 +332,7 @@ class LibraryChatbot:
 
     def _handle_search(self, turn: Turn) -> dict:
         result = self.search_engine.search(turn.query, top_n=5, availability=db.availability_df(turn.conn))
-        return self._reply(turn, f"Found {len(result)} matching title(s).", self._records(result))
+        return self._reply(turn, f"Found {_n(len(result), 'matching title')}.", self._records(result))
 
     def _handle_author_search(self, turn: Turn) -> dict:
         author = turn.entities["author"]
@@ -340,9 +346,9 @@ class LibraryChatbot:
         )
         if available_only:
             result = result[result["available"] > 0]
-            message = f"Found {len(result)} available book(s) by {author}."
+            message = f"Found {_n(len(result), 'available book')} by {author}."
         else:
-            message = f"Found {len(result)} book(s) by {author}; availability is shown."
+            message = f"Found {_n(len(result), 'book')} by {author}; availability is shown."
         return self._reply(turn, message, self._records(result))
 
     def _handle_forecast(self, turn: Turn) -> dict:
@@ -377,7 +383,7 @@ class LibraryChatbot:
             return self._reply(turn, f"You have no books on loan. You can borrow up to {MAX_ACTIVE_LOANS}.")
         table = loans[["loan_id", "title", "due_on", "days_left", "status", "fine"]].copy()
         table["due_on"] = table["due_on"].dt.strftime("%Y-%m-%d")
-        message = (f"You have {summary['active_loans']} book(s) on loan"
+        message = (f"You have {_n(summary['active_loans'], 'book')} on loan"
                    + (f", {summary['overdue']} overdue" if summary["overdue"] else "")
                    + f". Fines so far: KES {summary['fines_owed']}. "
                    + (f"Borrowing is paused until you return “{summary['blocking_title']}”."

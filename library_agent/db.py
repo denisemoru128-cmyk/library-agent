@@ -277,7 +277,7 @@ def open_loans_df(conn, student_id: int | None = None) -> pd.DataFrame:
     return pd.read_sql_query(
         """
         SELECT l.loan_id, l.student_id, s.name AS student_name, s.reg_no,
-               l.book_id, b.title, b.author, l.borrowed_on, l.due_on, l.renewals
+               l.book_id, b.title, b.author, b.genre, l.borrowed_on, l.due_on, l.renewals
         FROM loans l
         JOIN books b ON b.book_id = l.book_id
         JOIN students s ON s.student_id = l.student_id

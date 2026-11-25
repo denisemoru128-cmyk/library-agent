@@ -10,17 +10,14 @@ from library_agent import circulation, db, dates
 from library_agent.config import ESCALATION_DAYS
 
 from . import theme
+from .common import go
 
-STUDENT_SECTIONS = ["Search", "For you", "My loans", "Notifications", "Assistant"]
+STUDENT_SECTIONS = ["Home", "Search", "My loans", "For you"]
 LIBRARIAN_SECTIONS = ["Dashboard", "Circulation desk", "Agent", "Demand & buying", "Catalogue", "Model quality"]
 
 
 def sections_for(user: dict) -> list[str]:
     return STUDENT_SECTIONS if user["role"] == "student" else LIBRARIAN_SECTIONS
-
-
-def _go(section: str) -> None:
-    st.session_state["section"] = section
 
 
 def sidebar(conn, user: dict, forecaster) -> str:
@@ -35,7 +32,7 @@ def sidebar(conn, user: dict, forecaster) -> str:
                 '<div><b>Library Agent</b><small>Karatina University</small></div></div>')
         for name in sections:
             st.button(name, key=f"nav_{name}", type="primary" if name == current else "secondary",
-                      on_click=_go, args=(name,))
+                      on_click=go, args=(name,))
         st.html('<div class="clock">Library date'
                 f'<b>{dates.short(db.today(conn))} {db.today(conn).year}</b>simulated for the demo</div>')
         if user["role"] == "librarian":
@@ -58,7 +55,7 @@ def alerts(conn, user: dict) -> tuple[int, list[str]]:
         for row in loans[loans["status"] == "due soon"].itertuples():
             lines.append(f"**Due soon.** “{row.title}” is due {dates.short(row.due_on.date())}.")
         count = len(lines)
-        for row in db.notifications_df(conn, user["student_id"], limit=3).itertuples():
+        for row in db.notifications_df(conn, user["student_id"], limit=5).itertuples():
             lines.append(f"From the library, {row.created_on}: {row.message}")
         return count, lines
     overdue = circulation.overdue_loans(conn)
@@ -70,8 +67,14 @@ def alerts(conn, user: dict) -> tuple[int, list[str]]:
     return len(serious), lines
 
 
+def _run_top_search() -> None:
+    """Pressing Enter in the search box opens the Search screen with that query."""
+    st.session_state["search_query"] = st.session_state.get("top_search", "").strip()
+    st.session_state["section"] = "Search"
+
+
 def top_row(conn, user: dict, students) -> None:
-    """Alerts and the user menu, right-aligned above the page."""
+    """The catalogue search box (students), Alerts and the user menu, above every screen."""
     count, lines = alerts(conn, user)
     if user["role"] == "student":
         student = students[students["student_id"] == user["student_id"]].iloc[0]
@@ -79,7 +82,12 @@ def top_row(conn, user: dict, students) -> None:
             f"{student['department']}  \nInterests: {str(student['interests']).replace('|', ', ')}")
     else:
         who, detail = "Librarian", "Library desk"
-    _, alerts_col, user_col = st.columns([6, 1.3, 2.4])
+    search_col, alerts_col, user_col = st.columns([5, 1.4, 2.6])
+    with search_col:
+        if user["role"] == "student":
+            st.text_input("Search the catalogue", key="top_search", label_visibility="collapsed",
+                          placeholder="Search by title, author or topic, then press Enter",
+                          on_change=_run_top_search)
     with alerts_col:
         with st.popover(f"Alerts ({count})" if count else "Alerts"):
             if lines:
@@ -91,6 +99,6 @@ def top_row(conn, user: dict, students) -> None:
         with st.popover(who):
             st.markdown(detail)
             if st.button("Switch user", key="switch_user"):
-                for key in ("user", "section", "_flash"):
+                for key in ("user", "section", "_flash", "search_query", "top_search"):
                     st.session_state.pop(key, None)
                 st.rerun()
